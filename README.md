@@ -2,15 +2,19 @@
 
 # Roistat MCP
 
-Roistat analytics, orders, calls, leads and reporting discovery.
+MCP server for Roistat analytics. Retrieve reports, compare periods and inspect orders, leads, calls and sales funnels from an AI assistant.
 
-Install it on your own computer or server and connect an MCP client. No AI Kit or
-central ZAI platform installation is required. Provider credentials and API access
-are required; provider charges and account restrictions still apply.
+## What you can do
+
+- Build analytics reports, compare periods and retrieve daily statistics.
+- Read orders, leads, calls, visits, clients and funnel data from allowed projects.
+- Discover dimension values and custom metrics when preparing a report.
 
 ## Quick start
 
 Install Python 3.12+ (below 3.15), [uv](https://docs.astral.sh/uv/getting-started/installation/) and Git.
+
+You need a Roistat API key and the IDs of the projects you want to make available. The wizard saves the key locally and configures the project list.
 
 ```sh
 git clone https://github.com/zai-one/roistat-mcp.git
@@ -25,12 +29,9 @@ The last command starts stdio and waits for an MCP client; it is not an interact
 See [INSTALL.md](INSTALL.md) for credentials, client configuration, HTTP and package integration.
 `--check-config` checks local settings only; it never validates a provider account over the network.
 
-## Included in 0.2.0
+## Scope and limits
 
-Discover roistat_dimension_values and roistat_custom_metrics. Samples are bounded and do not expand the report metric allowlist.
-
-Existing tool names and schemas remain supported. Writes and paid operations retain
-their server policy and approval controls. See [runtime configuration](docs/RUNTIME.md).
+Report metrics are restricted to the supported list; discovering a custom metric does not automatically enable it in reports. Supported write operations require separate configuration and approval. See [access and write settings](docs/RUNTIME.md).
 
 ## Verification
 
