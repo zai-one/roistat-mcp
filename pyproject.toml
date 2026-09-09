@@ -19,6 +19,7 @@ dependencies = [
 dev = ["pytest==9.1.1", "pytest-asyncio==1.4.0", "ruff==0.15.21"]
 
 [project.scripts]
+roistat-mcp-setup = "zai_roistat.setup:main"
 roistat-mcp = "zai_roistat.server:main"
 
 [tool.hatch.build.targets.wheel]

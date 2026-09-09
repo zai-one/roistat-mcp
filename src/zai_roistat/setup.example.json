@@ -1,0 +1,7 @@
+{
+  "env": {
+    "ROISTAT_API_KEY_FILE": "secrets/api.token",
+    "ROISTAT_PROJECT_ALLOWLIST": "YOUR_NUMERIC_PROJECT_ID",
+    "ROISTAT_STATE_PATH": "state/roistat.sqlite"
+  }
+}
