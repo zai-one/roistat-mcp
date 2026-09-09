@@ -161,6 +161,7 @@ async def test_original_contract_and_no_mcp_approval_accept(tmp_path, pair):
         assert {tool.name for tool in tools} == set(contract) | {
             "roistat_dimension_values",
             "roistat_custom_metrics",
+            "roistat_analytics_bundle",
         }
         for tool in tools:
             if tool.name not in contract:
@@ -236,7 +237,7 @@ async def test_http_scopes_account_and_actor_prevent_cross_use(tmp_path, pair):
     settings = config(tmp_path, pair, write_enabled=True)
     server = create_server(settings, http_factory=recorder.factory)
     async with connection(server, token(pair, scopes=["roistat:read"])) as client:
-        assert len(await client.list_tools()) == 20
+        assert len(await client.list_tools()) == 21
         with pytest.raises(ToolError):
             await client.call_tool("roistat_prepare_write", WRITE)
     async with connection(server, token(pair)) as client:
@@ -291,7 +292,7 @@ async def test_stdio_process_loads_real_service(tmp_path):
             env={"ROISTAT_API_KEY_FILE": str(secret), "ROISTAT_STATE_PATH": str(tmp_path / "stdio.sqlite")},
         )
     ) as client:
-        assert len(await client.list_tools()) == 22
+        assert len(await client.list_tools()) == 23
         with pytest.raises(ToolError):
             await client.call_tool("roistat_get_order", {"project_id": 0, "order_id": "x"})
 

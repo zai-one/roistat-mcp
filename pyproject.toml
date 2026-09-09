@@ -4,8 +4,8 @@ build-backend = "hatchling.build"
 
 [project]
 name = "zai-roistat-mcp"
-version = "0.2.0"
-description = "Standalone governed Roistat MCP service"
+version = "0.3.0"
+description = "Roistat analytics, attribution and CRM reports for AI assistants, with project access controls"
 readme = "README.md"
 license = "LicenseRef-ZAI-ONE"
 license-files = ["LICENSE", "NOTICE"]

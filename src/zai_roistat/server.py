@@ -20,6 +20,7 @@ from fastmcp.server.dependencies import get_access_token
 
 from zai_roistat import __version__
 from zai_roistat.adapter import RoistatAdapter
+from zai_roistat.analytics_bundle import register_bundle
 from zai_roistat.approvals import ApprovalRecord, ApprovalStore
 from zai_roistat.coalescing import AsyncSingleFlight
 from zai_roistat.config import ServiceConfig
@@ -296,6 +297,7 @@ def create_server(
     server = FastMCP("Roistat MCP", version=__version__, auth=auth, mask_error_details=True)
     runtime = Runtime(config, transport, http_factory)
     register_tools(ToolRegistrar(server, runtime), runtime)
+    register_bundle(ToolRegistrar(server, runtime), runtime)
     return server
 
 

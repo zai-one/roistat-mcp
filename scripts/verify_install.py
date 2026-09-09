@@ -22,6 +22,17 @@ def local_only(sock, address):
         raise RuntimeError('external network disabled in clean-install gate')
     return original(sock, address)
 socket.socket.connect = local_only
+from zai_roistat import server
+class FixtureHttp(server.AdmittedHttpClient):
+    async def request(self, method, url, **kwargs):
+        await self._admit_attempt(1)
+        assert url.endswith('/project/analytics/data')
+        return {'status': 'success', 'data': [{'items': [{'dimensions': {}, 'metrics': [
+            {'metric_name': 'visits', 'value': 0}]}], 'mean': {'metrics': []}}]}
+real_create = server.create_server
+def create(*args, **kwargs):
+    return real_create(*args, **kwargs, http_factory=FixtureHttp)
+server.create_server = create
 package, config = sys.argv[1:]
 sys.argv = [package, '--config', config]
 runpy.run_module(package, run_name='__main__')
@@ -58,6 +69,15 @@ async def check():
         tools = await client.list_tools()
         assert len(tools) >= int(minimum)
         assert all(tool.name for tool in tools)
+        report = (await client.call_tool('roistat_analytics_bundle', {
+            'project_id': 12345, 'metrics': ['visits', 'leads'], 'dimensions': ['marker_level_1'],
+            'period': {'from': '2026-06-01T00:00:00+00:00', 'to': '2026-06-02T00:00:00+00:00'}
+        })).data
+        values = report['reports'][0]['rows'][0]['metrics']
+        assert values['visits']['value'] == 0 and values['leads']['value'] is None
+        assert report['reports'][0]['selection']['all_response_rows_included'] is True
+        assert report['reports'][0]['selection']['provider_completeness'] == 'not_asserted'
+        assert len(report['reports'][0]['response_sha256']) == 64
         print(json.dumps({'version': expected_version, 'tools': sorted(tool.name for tool in tools)}))
 asyncio.run(check())
 """
@@ -168,7 +188,7 @@ def main():
         minimum = {
             "Keysso": 1,
             "Topvisor": 18,
-            "Roistat": 22,
+            "Roistat": 23,
             "Yandex": 47,
             "Arsenkin": 12,
             "Telegram": 7,

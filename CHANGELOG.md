@@ -1,7 +1,9 @@
 # Changelog
 
-## Unreleased
+## 0.3.0
 
+- Analytics bundles for one or two periods: provider totals by interval, attribution, explicit missing values, request replay and response digests.
+- Bounded local row slices and JSON/CSV exports, preserving project authorization and cleaning supported personal fields before export.
 - Installable setup wizard and JSON/TOML client snippets that work outside the checkout.
 - English and Russian agency information, integration contact and package installation guide.
 

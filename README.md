@@ -19,6 +19,7 @@ Try asking your assistant:
 | Understand performance | Analytics reports, period comparisons and daily statistics with supported metrics and attribution models. |
 | Follow the sales funnel | Orders, statuses, leads and funnel reports for your allowed projects. |
 | Check the underlying activity | Calltracking, visits, clients and duplicate-lead reports, with supported personal fields masked. |
+| Share a traceable report | [Analytics bundles](docs/ANALYTICS_BUNDLE.md): one or two periods, provider totals, attribution, exact request parameters and JSON/CSV. Missing values stay distinct from zero. |
 
 ## Quick start
 
