@@ -1,0 +1,654 @@
+{
+  "gateway_revision": "c600df7d695548c42ee58cf68741a5c1047788c5",
+  "method": "authenticated runtime discovery; no provider API calls",
+  "tools": {
+    "roistat_list_projects": {
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "description": "List Roistat projects visible to the server-side API key."
+    },
+    "roistat_capabilities": {
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "description": "Return the fixed Roistat capability matrix without calling the API."
+    },
+    "roistat_health": {
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "project_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          }
+        },
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "description": "Probe Roistat auth, freshness, empty/partial state, rate-limit and drift."
+    },
+    "roistat_analytics_catalog": {
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "project_id": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "project_id"
+        ],
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "description": "List documented analytics metrics, dimensions and attribution models."
+    },
+    "roistat_analytics_report": {
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "project_id": {
+            "type": "integer"
+          },
+          "metrics": {
+            "items": {},
+            "type": "array"
+          },
+          "dimensions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "period": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "attribution": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "interval": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          }
+        },
+        "required": [
+          "project_id",
+          "metrics",
+          "dimensions",
+          "period"
+        ],
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "description": "Run a bounded Roistat analytics report with an allowlisted metric set."
+    },
+    "roistat_analytics_compare": {
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "project_id": {
+            "type": "integer"
+          },
+          "metrics": {
+            "items": {},
+            "type": "array"
+          },
+          "dimensions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "current_period": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "previous_period": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "attribution": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          }
+        },
+        "required": [
+          "project_id",
+          "metrics",
+          "dimensions",
+          "current_period",
+          "previous_period"
+        ],
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "description": "Compare two analytics periods without treating missing values as zero."
+    },
+    "roistat_statistics_daily": {
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "project_id": {
+            "type": "integer"
+          },
+          "period": {
+            "type": "string"
+          },
+          "time_zone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "channel": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          }
+        },
+        "required": [
+          "project_id",
+          "period"
+        ],
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "description": "Read daily visit-period statistics. Official extra cap is 5 requests/hour."
+    },
+    "roistat_list_orders": {
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "project_id": {
+            "type": "integer"
+          },
+          "limit": {
+            "default": 50,
+            "type": "integer"
+          },
+          "offset": {
+            "default": 0,
+            "type": "integer"
+          },
+          "filters": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "items": {},
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          }
+        },
+        "required": [
+          "project_id"
+        ],
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "description": "List bounded Roistat/CRM orders. Empty pages stay unknown, not zero."
+    },
+    "roistat_get_order": {
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "project_id": {
+            "type": "integer"
+          },
+          "order_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "project_id",
+          "order_id"
+        ],
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "description": "Read one order/deal card, including funnel status and visit chain."
+    },
+    "roistat_list_order_statuses": {
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "project_id": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "project_id"
+        ],
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "description": "List CRM funnel statuses mapped in the Roistat project."
+    },
+    "roistat_list_leads": {
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "project_id": {
+            "type": "integer"
+          },
+          "period": {
+            "type": "string"
+          },
+          "limit": {
+            "default": 50,
+            "type": "integer"
+          },
+          "offset": {
+            "default": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "project_id",
+          "period"
+        ],
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "description": "List proxy leads for a bounded YYYY-MM-DD-YYYY-MM-DD period. PII is redacted."
+    },
+    "roistat_get_lead": {
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "project_id": {
+            "type": "integer"
+          },
+          "lead_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "project_id",
+          "lead_id"
+        ],
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "description": "Read one proxy lead by Roistat id. Phone and email are redacted."
+    },
+    "roistat_list_lead_duplicates": {
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "project_id": {
+            "type": "integer"
+          },
+          "period": {
+            "type": "string"
+          },
+          "limit": {
+            "default": 50,
+            "type": "integer"
+          },
+          "offset": {
+            "default": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "project_id",
+          "period"
+        ],
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "description": "List duplicate proxy leads for a bounded period."
+    },
+    "roistat_list_calls": {
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "project_id": {
+            "type": "integer"
+          },
+          "limit": {
+            "default": 50,
+            "type": "integer"
+          },
+          "offset": {
+            "default": 0,
+            "type": "integer"
+          },
+          "filters": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "items": {},
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          }
+        },
+        "required": [
+          "project_id"
+        ],
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "description": "List calltracking history. Caller and callee numbers are redacted."
+    },
+    "roistat_calltracking_summary": {
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "project_id": {
+            "type": "integer"
+          },
+          "period": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          }
+        },
+        "required": [
+          "project_id",
+          "period"
+        ],
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "description": "Read the official calltracking dashboard summary for one period."
+    },
+    "roistat_list_visits": {
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "project_id": {
+            "type": "integer"
+          },
+          "limit": {
+            "default": 50,
+            "type": "integer"
+          },
+          "offset": {
+            "default": 0,
+            "type": "integer"
+          },
+          "filters": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "items": {},
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          }
+        },
+        "required": [
+          "project_id"
+        ],
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "description": "List site visits. Visitor IPs are redacted."
+    },
+    "roistat_list_clients": {
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "project_id": {
+            "type": "integer"
+          },
+          "limit": {
+            "default": 50,
+            "type": "integer"
+          },
+          "offset": {
+            "default": 0,
+            "type": "integer"
+          },
+          "filters": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "items": {},
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          }
+        },
+        "required": [
+          "project_id"
+        ],
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "description": "List CRM clients with phone and email redacted."
+    },
+    "roistat_funnel": {
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "project_id": {
+            "type": "integer"
+          },
+          "period": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "funnel": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "project_id",
+          "period",
+          "funnel"
+        ],
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "description": "Read the official status-funnel report for one project."
+    },
+    "roistat_prepare_write": {
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "operation": {
+            "type": "string"
+          },
+          "project_id": {
+            "type": "integer"
+          },
+          "payload": {
+            "additionalProperties": true,
+            "type": "object"
+          }
+        },
+        "required": [
+          "operation",
+          "project_id",
+          "payload"
+        ],
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "description": "Draft a single-object Roistat write and open an unaccepted approval."
+    },
+    "roistat_apply_write": {
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "operation": {
+            "type": "string"
+          },
+          "project_id": {
+            "type": "integer"
+          },
+          "payload": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "approval_id": {
+            "type": "string"
+          },
+          "idempotency_key": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "operation",
+          "project_id",
+          "payload",
+          "approval_id",
+          "idempotency_key"
+        ],
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "description": "Execute one accepted, allowlisted single-object Roistat write with readback."
+    }
+  }
+}

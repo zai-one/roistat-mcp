@@ -1,0 +1,475 @@
+from __future__ import annotations
+
+from datetime import UTC, datetime, timedelta
+from typing import Any, cast
+from uuid import UUID, uuid4
+
+from zai_roistat.adapter import (
+    ALLOWED_CALL_FILTER_FIELDS,
+    ALLOWED_CALL_STATUSES,
+    ALLOWED_CLIENT_FILTER_FIELDS,
+    ALLOWED_VISIT_FILTER_FIELDS,
+)
+from zai_roistat.transport import ProviderError, request_hash
+
+
+def register_tools(server: Any, runtime: Any) -> None:
+    registry = runtime
+    settings = runtime
+    store = runtime.approvals
+    ApprovalRecord = runtime.approval_record
+    current_access = runtime.current_access
+    require_scopes = runtime.require_scopes
+    safe_provider_error = runtime.safe_error
+    _provider_read = runtime.read
+    _autonomous_write = runtime.write
+
+    @server.tool(auth=require_scopes("roistat:read"))
+    async def roistat_dimension_values(project_id: int, dimension: str, limit: int = 100) -> dict[str, Any]:
+        """Discover a bounded sample of allowed dimension values with explicit completeness."""
+        adapter = registry.roistat()
+        arguments = dict(project_id=project_id, dimension=dimension, limit=limit)
+        return await _provider_read(
+            "roistat",
+            "dimension_values",
+            arguments,
+            lambda: adapter.analytics_dimension_values(**arguments),
+            validate=lambda: adapter.validate_discovery(**arguments),
+        )
+
+    @server.tool(auth=require_scopes("roistat:read"))
+    async def roistat_custom_metrics(project_id: int, limit: int = 100) -> dict[str, Any]:
+        """Discover custom metric definitions without changing values or report permissions."""
+        adapter = registry.roistat()
+        arguments = dict(project_id=project_id, limit=limit)
+        return await _provider_read(
+            "roistat",
+            "custom_metrics",
+            arguments,
+            lambda: adapter.analytics_custom_metrics(**arguments),
+            validate=lambda: adapter.validate_discovery(**arguments),
+        )
+
+    @server.tool(auth=require_scopes("roistat:read"))
+    async def roistat_list_projects() -> dict[str, Any]:
+        """List Roistat projects visible to the server-side API key."""
+        adapter = registry.roistat()
+        return await _provider_read(
+            "roistat",
+            "list_projects",
+            {},
+            adapter.list_projects,
+            validate=adapter.validate_projects,
+        )
+
+    @server.tool(auth=require_scopes("roistat:read"))
+    async def roistat_capabilities() -> dict[str, Any]:
+        """Return the fixed Roistat capability matrix without calling the API."""
+        await registry.ensure_enabled("roistat")
+        return registry.roistat().capabilities()
+
+    @server.tool(auth=require_scopes("roistat:read"))
+    async def roistat_health(project_id: int | None = None) -> dict[str, Any]:
+        """Probe Roistat auth, freshness, empty/partial state, rate-limit and drift."""
+        adapter = registry.roistat()
+        return await _provider_read(
+            "roistat",
+            "health",
+            {"project_id": project_id},
+            lambda: adapter.health(project_id),
+        )
+
+    @server.tool(auth=require_scopes("roistat:read"))
+    async def roistat_analytics_catalog(project_id: int) -> dict[str, Any]:
+        """List documented analytics metrics, dimensions and attribution models."""
+        adapter = registry.roistat()
+        return await _provider_read(
+            "roistat",
+            "analytics_catalog",
+            {"project_id": project_id},
+            lambda: adapter.analytics_catalog(project_id),
+            validate=lambda: adapter.authorize_project(project_id),
+        )
+
+    @server.tool(auth=require_scopes("roistat:read"))
+    async def roistat_analytics_report(
+        project_id: int,
+        metrics: list[Any],
+        dimensions: list[str],
+        period: dict[str, Any],
+        attribution: str | None = None,
+        interval: str | None = None,
+    ) -> dict[str, Any]:
+        """Run a bounded Roistat analytics report with an allowlisted metric set."""
+        adapter = registry.roistat()
+        return await _provider_read(
+            "roistat",
+            "analytics_report",
+            {
+                "project_id": project_id,
+                "metrics": metrics,
+                "dimensions": dimensions,
+                "period": period,
+                "attribution": attribution,
+                "interval": interval,
+            },
+            lambda: adapter.analytics_report(project_id, metrics, dimensions, period, attribution, interval),
+            validate=lambda: adapter.validate_analytics(
+                project_id, metrics, dimensions, period, attribution=attribution, interval=interval
+            ),
+        )
+
+    @server.tool(auth=require_scopes("roistat:read"))
+    async def roistat_analytics_compare(
+        project_id: int,
+        metrics: list[Any],
+        dimensions: list[str],
+        current_period: dict[str, Any],
+        previous_period: dict[str, Any],
+        attribution: str | None = None,
+    ) -> dict[str, Any]:
+        """Compare two analytics periods without treating missing values as zero."""
+        adapter = registry.roistat()
+        return await _provider_read(
+            "roistat",
+            "analytics_compare",
+            {
+                "project_id": project_id,
+                "metrics": metrics,
+                "dimensions": dimensions,
+                "current_period": current_period,
+                "previous_period": previous_period,
+                "attribution": attribution,
+            },
+            lambda: adapter.analytics_compare(
+                project_id,
+                metrics,
+                dimensions,
+                current_period,
+                previous_period,
+                attribution,
+            ),
+            validate=lambda: (
+                adapter.validate_analytics(
+                    project_id, metrics, dimensions, current_period, attribution=attribution
+                ),
+                adapter.validate_analytics(
+                    project_id, metrics, dimensions, previous_period, attribution=attribution
+                ),
+            ),
+        )
+
+    @server.tool(auth=require_scopes("roistat:read"))
+    async def roistat_statistics_daily(
+        project_id: int,
+        period: str,
+        time_zone: str | None = None,
+        channel: str | None = None,
+    ) -> dict[str, Any]:
+        """Read daily visit-period statistics. Official extra cap is 5 requests/hour."""
+        adapter = registry.roistat()
+        return await _provider_read(
+            "roistat",
+            "statistics_daily",
+            {
+                "project_id": project_id,
+                "period": period,
+                "time_zone": time_zone,
+                "channel": channel,
+            },
+            lambda: adapter.statistics_daily(project_id, period, time_zone, channel),
+            validate=lambda: adapter.validate_statistics(project_id, period, time_zone, channel),
+        )
+
+    @server.tool(auth=require_scopes("roistat:read"))
+    async def roistat_list_orders(
+        project_id: int,
+        limit: int = 50,
+        offset: int = 0,
+        filters: dict[str, Any] | list[Any] | None = None,
+    ) -> dict[str, Any]:
+        """List bounded Roistat/CRM orders. Empty pages stay unknown, not zero."""
+        adapter = registry.roistat()
+        return await _provider_read(
+            "roistat",
+            "list_orders",
+            {"project_id": project_id, "limit": limit, "offset": offset, "filters": filters},
+            lambda: adapter.list_orders(project_id, limit=limit, offset=offset, filters=filters),
+            validate=lambda: adapter.validate_list(project_id, limit=limit, offset=offset, filters=filters),
+        )
+
+    @server.tool(auth=require_scopes("roistat:read"))
+    async def roistat_get_order(project_id: int, order_id: str) -> dict[str, Any]:
+        """Read one order/deal card, including funnel status and visit chain."""
+        adapter = registry.roistat()
+        return await _provider_read(
+            "roistat",
+            "get_order",
+            {"project_id": project_id, "order_id": order_id},
+            lambda: adapter.get_order(project_id, order_id),
+            validate=lambda: adapter.authorize_project(project_id),
+        )
+
+    @server.tool(auth=require_scopes("roistat:read"))
+    async def roistat_list_order_statuses(project_id: int) -> dict[str, Any]:
+        """List CRM funnel statuses mapped in the Roistat project."""
+        adapter = registry.roistat()
+        return await _provider_read(
+            "roistat",
+            "list_order_statuses",
+            {"project_id": project_id},
+            lambda: adapter.list_order_statuses(project_id),
+            validate=lambda: adapter.authorize_project(project_id),
+        )
+
+    @server.tool(auth=require_scopes("roistat:read"))
+    async def roistat_list_leads(
+        project_id: int, period: str, limit: int = 50, offset: int = 0
+    ) -> dict[str, Any]:
+        """List proxy leads for a bounded YYYY-MM-DD-YYYY-MM-DD period. PII is redacted."""
+        adapter = registry.roistat()
+        return await _provider_read(
+            "roistat",
+            "list_leads",
+            {"project_id": project_id, "period": period, "limit": limit, "offset": offset},
+            lambda: adapter.list_leads(project_id, period, limit=limit, offset=offset),
+            validate=lambda: adapter.validate_list(
+                project_id, limit=limit, offset=offset, period=period, require_period=True
+            ),
+        )
+
+    @server.tool(auth=require_scopes("roistat:read"))
+    async def roistat_get_lead(project_id: int, lead_id: str) -> dict[str, Any]:
+        """Read one proxy lead by Roistat id. Phone and email are redacted."""
+        adapter = registry.roistat()
+        return await _provider_read(
+            "roistat",
+            "get_lead",
+            {"project_id": project_id, "lead_id": lead_id},
+            lambda: adapter.get_lead(project_id, lead_id),
+            validate=lambda: adapter.authorize_project(project_id),
+        )
+
+    @server.tool(auth=require_scopes("roistat:read"))
+    async def roistat_list_lead_duplicates(
+        project_id: int, period: str, limit: int = 50, offset: int = 0
+    ) -> dict[str, Any]:
+        """List duplicate proxy leads for a bounded period."""
+        adapter = registry.roistat()
+        return await _provider_read(
+            "roistat",
+            "list_lead_duplicates",
+            {"project_id": project_id, "period": period, "limit": limit, "offset": offset},
+            lambda: adapter.list_lead_duplicates(project_id, period, limit=limit, offset=offset),
+            validate=lambda: adapter.validate_list(
+                project_id, limit=limit, offset=offset, period=period, require_period=True
+            ),
+        )
+
+    @server.tool(auth=require_scopes("roistat:read"))
+    async def roistat_list_calls(
+        project_id: int,
+        limit: int = 50,
+        offset: int = 0,
+        filters: dict[str, Any] | list[Any] | None = None,
+    ) -> dict[str, Any]:
+        """List calltracking history. Caller and callee numbers are redacted."""
+        adapter = registry.roistat()
+        return await _provider_read(
+            "roistat",
+            "list_calls",
+            {"project_id": project_id, "limit": limit, "offset": offset, "filters": filters},
+            lambda: adapter.list_calls(project_id, limit=limit, offset=offset, filters=filters),
+            validate=lambda: adapter.validate_list(
+                project_id,
+                limit=limit,
+                offset=offset,
+                filters=filters,
+                allowed_fields=ALLOWED_CALL_FILTER_FIELDS,
+                extra_status=ALLOWED_CALL_STATUSES,
+            ),
+        )
+
+    @server.tool(auth=require_scopes("roistat:read"))
+    async def roistat_calltracking_summary(project_id: int, period: dict[str, Any] | str) -> dict[str, Any]:
+        """Read the official calltracking dashboard summary for one period."""
+        adapter = registry.roistat()
+        return await _provider_read(
+            "roistat",
+            "calltracking_summary",
+            {"project_id": project_id, "period": period},
+            lambda: adapter.calltracking_summary(project_id, period),
+            validate=lambda: adapter.authorize_project(project_id),
+        )
+
+    @server.tool(auth=require_scopes("roistat:read"))
+    async def roistat_list_visits(
+        project_id: int,
+        limit: int = 50,
+        offset: int = 0,
+        filters: dict[str, Any] | list[Any] | None = None,
+    ) -> dict[str, Any]:
+        """List site visits. Visitor IPs are redacted."""
+        adapter = registry.roistat()
+        return await _provider_read(
+            "roistat",
+            "list_visits",
+            {"project_id": project_id, "limit": limit, "offset": offset, "filters": filters},
+            lambda: adapter.list_visits(project_id, limit=limit, offset=offset, filters=filters),
+            validate=lambda: adapter.validate_list(
+                project_id,
+                limit=limit,
+                offset=offset,
+                filters=filters,
+                allowed_fields=ALLOWED_VISIT_FILTER_FIELDS,
+            ),
+        )
+
+    @server.tool(auth=require_scopes("roistat:read"))
+    async def roistat_list_clients(
+        project_id: int,
+        limit: int = 50,
+        offset: int = 0,
+        filters: dict[str, Any] | list[Any] | None = None,
+    ) -> dict[str, Any]:
+        """List CRM clients with phone and email redacted."""
+        adapter = registry.roistat()
+        return await _provider_read(
+            "roistat",
+            "list_clients",
+            {"project_id": project_id, "limit": limit, "offset": offset, "filters": filters},
+            lambda: adapter.list_clients(project_id, limit=limit, offset=offset, filters=filters),
+            validate=lambda: adapter.validate_list(
+                project_id,
+                limit=limit,
+                offset=offset,
+                filters=filters,
+                allowed_fields=ALLOWED_CLIENT_FILTER_FIELDS,
+            ),
+        )
+
+    @server.tool(auth=require_scopes("roistat:read"))
+    async def roistat_funnel(
+        project_id: int, period: dict[str, Any], funnel: list[dict[str, Any]]
+    ) -> dict[str, Any]:
+        """Read the official status-funnel report for one project."""
+        adapter = registry.roistat()
+        return await _provider_read(
+            "roistat",
+            "funnel",
+            {"project_id": project_id, "period": period, "funnel": funnel},
+            lambda: adapter.funnel(project_id, period, funnel),
+            validate=lambda: adapter.validate_funnel(project_id, period, funnel),
+        )
+
+    @server.tool(auth=require_scopes("roistat:write"))
+    async def roistat_prepare_write(
+        operation: str, project_id: int, payload: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Draft a single-object Roistat write and open an unaccepted approval."""
+        access = current_access()
+        adapter = registry.roistat()
+        validated = adapter.validate_write(operation, project_id, payload)
+        digest = request_hash(
+            {
+                "provider": "roistat",
+                "operation": validated["operation"],
+                "project_id": validated["project_id"],
+                "payload": payload,
+            }
+        )
+        approval_id = uuid4()
+        await store.create_approval(
+            ApprovalRecord(
+                approval_id,
+                access.principal_id,
+                "roistat",
+                validated["operation"],
+                digest,
+                0.0,
+                0.0,
+                "prepared",
+                datetime.now(UTC) + timedelta(minutes=30),
+                True,
+            )
+        )
+        return {
+            "approval_id": str(approval_id),
+            "request_hash": digest,
+            "operation": validated["operation"],
+            "project_id": validated["project_id"],
+            "object_id": validated["object_id"],
+            "risk_tier": validated["risk_tier"],
+            "write_tool_available": settings.roistat_write_enabled,
+            "next_gate": (
+                "accept the approval, then call roistat_apply_write with the same "
+                "operation, project_id, payload, approval_id and an idempotency_key"
+            ),
+        }
+
+    @server.tool(auth=require_scopes("roistat:write"))
+    async def roistat_apply_write(
+        operation: str,
+        project_id: int,
+        payload: dict[str, Any],
+        approval_id: str,
+        idempotency_key: str,
+    ) -> dict[str, Any]:
+        """Execute one accepted, allowlisted single-object Roistat write with readback."""
+        access = current_access()
+        if not settings.roistat_write_enabled:
+            raise safe_provider_error("roistat", ProviderError("Roistat write runtime is not enabled"))
+        adapter = registry.roistat()
+        try:
+            validated = adapter.validate_write(operation, project_id, payload)
+            digest = request_hash(
+                {
+                    "provider": "roistat",
+                    "operation": validated["operation"],
+                    "project_id": validated["project_id"],
+                    "payload": payload,
+                }
+            )
+            try:
+                identifier = UUID(approval_id)
+            except ValueError as exc:
+                raise PermissionError("an accepted approval matching this write is required") from exc
+            approval = await store.get_approval(identifier)
+            if (
+                approval is None
+                or approval.principal_id != access.principal_id
+                or approval.provider != "roistat"
+                or approval.operation != validated["operation"]
+                or approval.request_hash != digest
+                or approval.status not in {"accepted", "consumed"}
+            ):
+                raise PermissionError("an accepted approval matching this write is required")
+
+            async def _execute() -> dict[str, Any]:
+                if not await store.consume_approval(identifier):
+                    raise PermissionError("approval is not accepted or was already consumed")
+                return await adapter.apply_write(operation, project_id, payload)
+
+            return cast(
+                dict[str, Any],
+                await _autonomous_write(
+                    "roistat",
+                    validated["operation"],
+                    {
+                        "operation": operation,
+                        "project_id": project_id,
+                        "payload": payload,
+                    },
+                    idempotency_key,
+                    enabled=True,
+                    validate=lambda: None,
+                    apply_fn=_execute,
+                    readback_fn=lambda result: adapter.readback(
+                        validated["operation"],
+                        validated["project_id"],
+                        result.get("object_id") if isinstance(result, dict) else validated["object_id"],
+                    ),
+                ),
+            )
+        except (ProviderError, PermissionError, ValueError) as exc:
+            raise safe_provider_error("roistat", exc) from None
