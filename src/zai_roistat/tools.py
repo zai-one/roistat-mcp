@@ -362,6 +362,59 @@ def register_tools(server: Any, runtime: Any) -> None:
             validate=lambda: adapter.validate_funnel(project_id, period, funnel),
         )
 
+    @server.tool(auth=require_scopes("roistat:read"))
+    async def roistat_health_indicators(project_id: int, messages_per_indicator: int = 3) -> dict[str, Any]:
+        """Read the official project-state processes (CRM sync, counter, analytics rebuild).
+
+        Read-only; never starts a process. Status: ok, errors or not_finished.
+        """
+        adapter = registry.roistat()
+        return await _provider_read(
+            "roistat",
+            "health_indicators",
+            {"project_id": project_id, "messages_per_indicator": messages_per_indicator},
+            lambda: adapter.health_indicators(project_id, messages_per_indicator),
+            validate=lambda: adapter.authorize_project(project_id),
+        )
+
+    @server.tool(auth=require_scopes("roistat:read"))
+    async def roistat_list_channels(project_id: int, limit: int = 200) -> dict[str, Any]:
+        """List advertising channels (system and manually marked) used in a project."""
+        adapter = registry.roistat()
+        return await _provider_read(
+            "roistat",
+            "list_channels",
+            {"project_id": project_id, "limit": limit},
+            lambda: adapter.list_channels(project_id, limit),
+            validate=lambda: adapter.authorize_project(project_id),
+        )
+
+    @server.tool(auth=require_scopes("roistat:read"))
+    async def roistat_list_channel_costs(
+        project_id: int, limit: int = 50, offset: int = 0, source: str | None = None
+    ) -> dict[str, Any]:
+        """List manually entered channel costs. Optional source is a channel-name prefix."""
+        adapter = registry.roistat()
+        return await _provider_read(
+            "roistat",
+            "list_channel_costs",
+            {"project_id": project_id, "limit": limit, "offset": offset, "source": source},
+            lambda: adapter.list_channel_costs(project_id, limit=limit, offset=offset, source=source),
+            validate=lambda: adapter.authorize_project(project_id),
+        )
+
+    @server.tool(auth=require_scopes("roistat:read"))
+    async def roistat_list_managers(project_id: int, limit: int = 200) -> dict[str, Any]:
+        """List CRM managers known to a project. Email and phone are redacted."""
+        adapter = registry.roistat()
+        return await _provider_read(
+            "roistat",
+            "list_managers",
+            {"project_id": project_id, "limit": limit},
+            lambda: adapter.list_managers(project_id, limit),
+            validate=lambda: adapter.authorize_project(project_id),
+        )
+
     @server.tool(auth=require_scopes("roistat:write"))
     async def roistat_prepare_write(
         operation: str, project_id: int, payload: dict[str, Any]

@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- `roistat_health_indicators`: official project-state processes (`GET /project/health/indicator/list`), read-only.
+- `roistat_list_channels` and `roistat_list_channel_costs`: advertising channels and manually entered costs
+  (`/project/analytics/source/list`, `/project/analytics/source/cost/list`), bounded locally.
+- `roistat_list_managers`: CRM managers (`/project/integration/manager/list`) with email and phone redacted.
+- Capability matrix lists the indicator, channel and manager sections; their write methods stay closed.
+
 ## 0.3.0
 
 - Analytics bundles for one or two periods: provider totals by interval, attribution, explicit missing values, request replay and response digests.

@@ -225,6 +225,7 @@ class JsonHttpClient:
         payload: dict[str, Any] | list[Any] | None = None,
         params: dict[str, Any] | None = None,
         idempotent: bool = False,
+        array_response: bool = False,
     ) -> dict[str, Any]:
         last_error: Exception | None = None
         self._validate_request_size(payload, params)
@@ -244,6 +245,9 @@ class JsonHttpClient:
                         value = response.json() if response.content else {}
                     except ValueError as exc:
                         raise ProviderResponseError("provider returned invalid JSON") from exc
+                    if array_response and isinstance(value, list):
+                        # A few documented methods answer with a bare JSON array.
+                        return {"status": "success", "data": value}
                     if not isinstance(value, dict):
                         raise ProviderResponseError("provider returned non-object JSON")
                     return value
