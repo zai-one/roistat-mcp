@@ -4,6 +4,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any, cast
 from uuid import UUID, uuid4
 
+from zai_roistat import update_check
 from zai_roistat.adapter import (
     ALLOWED_CALL_FILTER_FIELDS,
     ALLOWED_CALL_STATUSES,
@@ -96,12 +97,29 @@ def register_tools(server: Any, runtime: Any) -> None:
     async def roistat_health(project_id: int | None = None) -> dict[str, Any]:
         """Probe Roistat auth, freshness, empty/partial state, rate-limit and drift."""
         adapter = registry.roistat()
-        return await _provider_read(
+        result = await _provider_read(
             "roistat",
             "health",
             {"project_id": project_id},
             lambda: adapter.health(project_id),
         )
+        # Cache-only hint: never contacts GitHub from the health probe.
+        known = update_check.cached_status(registry.update_cache_path)
+        if known and known["update_available"]:
+            result["update"] = {
+                key: known[key]
+                for key in ("current_version", "latest_version", "release_notes_url", "update_command")
+            }
+        return result
+
+    @server.tool(auth=require_scopes("roistat:read"), annotations=READ_ONLY)
+    async def roistat_check_update(force: bool = False) -> dict[str, Any]:
+        """Check whether a newer Roistat MCP release exists on GitHub. Suggests, never installs.
+
+        Uses the public GitHub API with a short timeout and a 24h cache; set
+        ROISTAT_DISABLE_UPDATE_CHECK=1 to turn it off.
+        """
+        return await update_check.check_for_update(registry.update_cache_path, force=force)
 
     @server.tool(auth=require_scopes("roistat:read"), annotations=READ_ONLY)
     async def roistat_analytics_catalog(project_id: int) -> dict[str, Any]:

@@ -58,6 +58,7 @@ NEW_TOOLS = {
     "roistat_list_channels",
     "roistat_list_channel_costs",
     "roistat_list_managers",
+    "roistat_check_update",
 }
 WRITE = {
     "operation": "update_order_status",
@@ -246,7 +247,7 @@ async def test_http_scopes_account_and_actor_prevent_cross_use(tmp_path, pair):
     settings = config(tmp_path, pair, write_enabled=True)
     server = create_server(settings, http_factory=recorder.factory)
     async with connection(server, token(pair, scopes=["roistat:read"])) as client:
-        assert len(await client.list_tools()) == 25
+        assert len(await client.list_tools()) == 26
         with pytest.raises(ToolError):
             await client.call_tool("roistat_prepare_write", WRITE)
     async with connection(server, token(pair)) as client:
@@ -298,10 +299,14 @@ async def test_stdio_process_loads_real_service(tmp_path):
         StdioTransport(
             command=sys.executable,
             args=["-m", "zai_roistat"],
-            env={"ROISTAT_API_KEY_FILE": str(secret), "ROISTAT_STATE_PATH": str(tmp_path / "stdio.sqlite")},
+            env={
+                "ROISTAT_API_KEY_FILE": str(secret),
+                "ROISTAT_STATE_PATH": str(tmp_path / "stdio.sqlite"),
+                "ROISTAT_DISABLE_UPDATE_CHECK": "1",
+            },
         )
     ) as client:
-        assert len(await client.list_tools()) == 27
+        assert len(await client.list_tools()) == 28
         with pytest.raises(ToolError):
             await client.call_tool("roistat_get_order", {"project_id": 0, "order_id": "x"})
 
