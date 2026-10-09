@@ -348,3 +348,17 @@ async def test_cancelled_write_stops_upstream_before_releasing_lease(tmp_path, p
     with sqlite3.connect(settings.state_path) as db:
         assert db.execute("SELECT COUNT(*) FROM leases").fetchone()[0] == 0
         assert db.execute("SELECT status FROM writes").fetchone()[0] == "pending"
+
+
+async def test_tool_annotations_match_side_effects(tmp_path, pair):
+    async with Client(create_server(config(tmp_path, pair), transport="stdio")) as client:
+        tools = {tool.name: tool for tool in await client.list_tools()}
+    for name, tool in tools.items():
+        hints = tool.annotations
+        assert hints is not None, name
+        if name in {"roistat_prepare_write", "roistat_apply_write"}:
+            assert hints.readOnlyHint is False, name
+        else:
+            assert hints.readOnlyHint is True and hints.destructiveHint is False, name
+    assert tools["roistat_apply_write"].annotations.destructiveHint is True
+    assert tools["roistat_prepare_write"].annotations.destructiveHint is False

@@ -10,6 +10,7 @@ from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
 
 from zai_roistat import __version__
+from zai_roistat.tools import READ_ONLY
 from zai_roistat.transport import ProviderError, request_hash
 
 
@@ -248,7 +249,7 @@ async def bundle(
 
 
 def register_bundle(server, runtime):
-    @server.tool(auth=runtime.require_scopes("roistat:read"))
+    @server.tool(auth=runtime.require_scopes("roistat:read"), annotations=READ_ONLY)
     async def roistat_analytics_bundle(
         project_id: int,
         metrics: list[str],
