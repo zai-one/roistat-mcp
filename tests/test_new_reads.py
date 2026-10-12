@@ -132,3 +132,54 @@ async def test_transport_wraps_array_only_when_requested(monkeypatch) -> None:
     assert wrapped == {"status": "success", "data": [{"id": "1"}]}
     with pytest.raises(ProviderResponseError):
         await client.request("POST", "https://cloud.roistat.com/x", idempotent=True)
+
+
+async def test_health_indicators_tolerate_odd_provider_values_and_bound_text() -> None:
+    long_text = "x" * 5000
+    odd = {
+        "status": "success",
+        "data": [
+            {
+                "name": long_text,
+                "indicators": [
+                    {
+                        "id": {"nested": True},
+                        "name": long_text,
+                        "status": [1],
+                        "is_running": "yes",
+                        "messages": [
+                            {"s": {"a": 1}, "m": long_text, "d": long_text},
+                            {"s": [2], "m": {"html": "<b>"}, "d": 5},
+                            {"s": True, "m": "bool status"},
+                            {"s": "2", "m": "string status"},
+                            {"s": 2.0, "m": "float status"},
+                        ],
+                    },
+                    {"id": 2, "name": None, "status": {"code": 1}, "messages": []},
+                    {"id": True, "name": 7, "status": "1", "messages": []},
+                    {"id": 4, "name": "Float", "status": 1.5, "messages": []},
+                ],
+            },
+            {"name": ["not", "text"], "indicators": [{"id": 5, "status": None, "messages": "x"}]},
+        ],
+    }
+    result = await adapter(Http(odd)).health_indicators(12345, messages_per_indicator=5)
+    assert result["summary"] == {"ok": 1, "errors": 0, "not_finished": 0, "unknown": 4, "healthy": True}
+    first_group, second_group = result["categories"]
+    assert len(first_group["category"]) == 500 and second_group["category"] is None
+    first, second, third, fourth = first_group["indicators"]
+    assert first["id"] is None and len(first["name"]) == 500
+    assert first["state"] == "unknown" and first["status_code"] is None and first["is_running"] is None
+    states = [message["state"] for message in first["messages"]]
+    assert states == ["unknown", "unknown", "unknown", "errors", "unknown"]
+    assert len(first["messages"][0]["message"]) == 500 and len(first["messages"][0]["date"]) == 64
+    assert first["messages"][1]["message"] is None and first["messages"][1]["date"] is None
+    assert second["state"] == "unknown" and second["name"] is None
+    assert (
+        third["state"] == "ok"
+        and third["id"] is None
+        and third["name"] is None
+        and third["status_code"] == "1"
+    )
+    assert fourth["state"] == "unknown"
+    assert second_group["indicators"][0]["messages"] == []

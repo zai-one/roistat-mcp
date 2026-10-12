@@ -15,13 +15,23 @@ ROOT = Path(__file__).resolve().parents[1]
 NAME = "Roistat"
 PACKAGE = "zai_roistat"
 CHILD = """
-import runpy, socket, sys
+import os, runpy, socket, sys
+# The wizard-written config has no opt-out and the stdio child gets a minimal
+# environment, so disable the GitHub update check here: no DNS lookup, no request.
+os.environ['ROISTAT_DISABLE_UPDATE_CHECK'] = '1'
+LOCAL = {'127.0.0.1', '::1', 'localhost'}
 original = socket.socket.connect
 def local_only(sock, address):
-    if not isinstance(address, tuple) or address[0] not in {'127.0.0.1', '::1', 'localhost'}:
+    if not isinstance(address, tuple) or address[0] not in LOCAL:
         raise RuntimeError('external network disabled in clean-install gate')
     return original(sock, address)
 socket.socket.connect = local_only
+original_lookup = socket.getaddrinfo
+def local_lookup(host, *args, **kwargs):
+    if host is not None and host not in LOCAL:
+        raise RuntimeError('external DNS disabled in clean-install gate')
+    return original_lookup(host, *args, **kwargs)
+socket.getaddrinfo = local_lookup
 from zai_roistat import server
 class FixtureHttp(server.AdmittedHttpClient):
     async def request(self, method, url, **kwargs):

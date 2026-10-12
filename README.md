@@ -101,7 +101,9 @@ the current and latest versions, the release notes link and the matching update 
 (`git pull --ff-only && uv sync --frozen` for a checkout, `uv tool install --force ...` for a release package).
 When a newer version is already known from the cache, the server mentions it once in its startup
 instructions and in `roistat_health`. Nothing is ever installed automatically. Offline, the check
-reports `status: unknown` and the server keeps working. Set `ROISTAT_DISABLE_UPDATE_CHECK=1` to turn it off.
+reports `status: unknown` and the server keeps working; after a failure it waits 30 minutes before
+asking again. At startup the server refreshes this cache in the background by calling `api.github.com`
+(anonymous, at most once a day), including in HTTP deployments. Set `ROISTAT_DISABLE_UPDATE_CHECK=1` to turn it off.
 
 ## Built by ZAI.ONE
 

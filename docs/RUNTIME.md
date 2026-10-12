@@ -32,6 +32,16 @@ nonempty `sub`, future `exp` and `account_id` matching `ROISTAT_ACCOUNT_ID`.
 Scopes are `roistat:read` and `roistat:write`; client arguments cannot widen them.
 Use an authenticated TLS ingress when exposing HTTP outside the local host.
 
+Update check: unless `ROISTAT_DISABLE_UPDATE_CHECK=1` is set, the server calls
+`api.github.com` (anonymous, at most once a day) in the background at startup to
+see whether a newer release exists; this also applies to HTTP/server deployments,
+so disable it where outbound requests are not wanted. `roistat_check_update`
+performs the same check on request. Results are cached in `update-check.json`
+next to the state file. Every attempt is recorded there: after a failed request
+no new request is made for 30 minutes, and `force=true` is honoured at most once
+a minute. Only plain version tags (`v1.2.3`) are accepted. Nothing is installed
+automatically.
+
 Reads cover projects, capabilities, health, analytics, statistics, orders,
 leads, calls, visits, clients and funnels. Exact names and input/output schemas
 are in `contracts/roistat.json`. Source limitations and capability evidence are
