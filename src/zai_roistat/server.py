@@ -37,6 +37,7 @@ from zai_roistat.transport import (
     ProviderTimeoutError,
     request_hash,
 )
+from zai_roistat.update_check import refresh_in_background, startup_hint
 
 T = TypeVar("T")
 OPERATION_TIMEOUT_SECONDS = 75.0
@@ -81,6 +82,17 @@ class CallState:
     adapter: RoistatAdapter
 
 
+def update_cache_path(config: ServiceConfig) -> Any:
+    return config.state_path.parent / "update-check.json"
+
+
+SERVER_INSTRUCTIONS = (
+    "Roistat analytics and CRM data for allowlisted projects. Reads are bounded; empty or partial "
+    "responses are not proof of zero activity. Writes need roistat_prepare_write, an operator "
+    "approval and roistat_apply_write."
+)
+
+
 class Runtime:
     def __init__(self, config: ServiceConfig, transport: str, http_factory: Callable[..., Any] | None):
         self.config, self.transport = config, transport
@@ -97,6 +109,7 @@ class Runtime:
         self.approvals = ApprovalStore(self.store)
         self.approval_record = ApprovalRecord
         self.health_snapshots: dict[int, dict[str, Any]] = {}
+        self.update_cache_path = update_cache_path(config)
 
     def current_access(self) -> SimpleNamespace:
         return SimpleNamespace(principal_id=self.state.get().actor)
@@ -294,7 +307,14 @@ def create_server(
         if transport == "http"
         else None
     )
-    server = FastMCP("Roistat MCP", version=__version__, auth=auth, mask_error_details=True)
+    hint = startup_hint(update_cache_path(config))
+    server = FastMCP(
+        "Roistat MCP",
+        version=__version__,
+        auth=auth,
+        mask_error_details=True,
+        instructions=SERVER_INSTRUCTIONS + (f" {hint}" if hint else ""),
+    )
     runtime = Runtime(config, transport, http_factory)
     register_tools(ToolRegistrar(server, runtime), runtime)
     register_bundle(ToolRegistrar(server, runtime), runtime)
@@ -319,6 +339,8 @@ def main() -> None:
             print(json.dumps(result, sort_keys=True))
             parser.exit(0 if result["ready"] else 2)
         server = create_server(config, transport=args.transport)
+        # Refresh the cached update hint for the next start; never blocks startup.
+        refresh_in_background(update_cache_path(config))
     except (ValueError, OSError) as exc:
         parser.exit(2, f"configuration error: {type(exc).__name__}; check credential and policy files\n")
     if args.transport == "http":

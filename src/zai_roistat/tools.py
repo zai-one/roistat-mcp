@@ -4,6 +4,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any, cast
 from uuid import UUID, uuid4
 
+from zai_roistat import update_check
 from zai_roistat.adapter import (
     ALLOWED_CALL_FILTER_FIELDS,
     ALLOWED_CALL_STATUSES,
@@ -11,6 +12,30 @@ from zai_roistat.adapter import (
     ALLOWED_VISIT_FILTER_FIELDS,
 )
 from zai_roistat.transport import ProviderError, request_hash
+
+# MCP tool annotations are hints for clients; server-side scopes, project
+# allowlists and approvals remain the actual enforcement.
+READ_ONLY: dict[str, bool] = {
+    "readOnlyHint": True,
+    "destructiveHint": False,
+    "idempotentHint": True,
+    "openWorldHint": True,
+}
+LOCAL_READ_ONLY: dict[str, bool] = {**READ_ONLY, "openWorldHint": False}
+# Drafting only records a local, unaccepted approval; nothing reaches Roistat.
+PREPARE_WRITE: dict[str, bool] = {
+    "readOnlyHint": False,
+    "destructiveHint": False,
+    "idempotentHint": False,
+    "openWorldHint": False,
+}
+# delete_order is in the allowlist, so the apply tool is marked destructive.
+APPLY_WRITE: dict[str, bool] = {
+    "readOnlyHint": False,
+    "destructiveHint": True,
+    "idempotentHint": False,
+    "openWorldHint": True,
+}
 
 
 def register_tools(server: Any, runtime: Any) -> None:
@@ -24,7 +49,7 @@ def register_tools(server: Any, runtime: Any) -> None:
     _provider_read = runtime.read
     _autonomous_write = runtime.write
 
-    @server.tool(auth=require_scopes("roistat:read"))
+    @server.tool(auth=require_scopes("roistat:read"), annotations=READ_ONLY)
     async def roistat_dimension_values(project_id: int, dimension: str, limit: int = 100) -> dict[str, Any]:
         """Discover a bounded sample of allowed dimension values with explicit completeness."""
         adapter = registry.roistat()
@@ -37,7 +62,7 @@ def register_tools(server: Any, runtime: Any) -> None:
             validate=lambda: adapter.validate_discovery(**arguments),
         )
 
-    @server.tool(auth=require_scopes("roistat:read"))
+    @server.tool(auth=require_scopes("roistat:read"), annotations=READ_ONLY)
     async def roistat_custom_metrics(project_id: int, limit: int = 100) -> dict[str, Any]:
         """Discover custom metric definitions without changing values or report permissions."""
         adapter = registry.roistat()
@@ -50,7 +75,7 @@ def register_tools(server: Any, runtime: Any) -> None:
             validate=lambda: adapter.validate_discovery(**arguments),
         )
 
-    @server.tool(auth=require_scopes("roistat:read"))
+    @server.tool(auth=require_scopes("roistat:read"), annotations=READ_ONLY)
     async def roistat_list_projects() -> dict[str, Any]:
         """List Roistat projects visible to the server-side API key."""
         adapter = registry.roistat()
@@ -62,24 +87,41 @@ def register_tools(server: Any, runtime: Any) -> None:
             validate=adapter.validate_projects,
         )
 
-    @server.tool(auth=require_scopes("roistat:read"))
+    @server.tool(auth=require_scopes("roistat:read"), annotations=LOCAL_READ_ONLY)
     async def roistat_capabilities() -> dict[str, Any]:
         """Return the fixed Roistat capability matrix without calling the API."""
         await registry.ensure_enabled("roistat")
         return registry.roistat().capabilities()
 
-    @server.tool(auth=require_scopes("roistat:read"))
+    @server.tool(auth=require_scopes("roistat:read"), annotations=READ_ONLY)
     async def roistat_health(project_id: int | None = None) -> dict[str, Any]:
         """Probe Roistat auth, freshness, empty/partial state, rate-limit and drift."""
         adapter = registry.roistat()
-        return await _provider_read(
+        result = await _provider_read(
             "roistat",
             "health",
             {"project_id": project_id},
             lambda: adapter.health(project_id),
         )
+        # Cache-only hint: never contacts GitHub from the health probe.
+        known = update_check.cached_status(registry.update_cache_path)
+        if known and known["update_available"]:
+            result["update"] = {
+                key: known[key]
+                for key in ("current_version", "latest_version", "release_notes_url", "update_command")
+            }
+        return result
 
-    @server.tool(auth=require_scopes("roistat:read"))
+    @server.tool(auth=require_scopes("roistat:read"), annotations=READ_ONLY)
+    async def roistat_check_update(force: bool = False) -> dict[str, Any]:
+        """Check whether a newer Roistat MCP release exists on GitHub. Suggests, never installs.
+
+        Uses the public GitHub API with a short timeout and a 24h cache; set
+        ROISTAT_DISABLE_UPDATE_CHECK=1 to turn it off.
+        """
+        return await update_check.check_for_update(registry.update_cache_path, force=force)
+
+    @server.tool(auth=require_scopes("roistat:read"), annotations=READ_ONLY)
     async def roistat_analytics_catalog(project_id: int) -> dict[str, Any]:
         """List documented analytics metrics, dimensions and attribution models."""
         adapter = registry.roistat()
@@ -91,7 +133,7 @@ def register_tools(server: Any, runtime: Any) -> None:
             validate=lambda: adapter.authorize_project(project_id),
         )
 
-    @server.tool(auth=require_scopes("roistat:read"))
+    @server.tool(auth=require_scopes("roistat:read"), annotations=READ_ONLY)
     async def roistat_analytics_report(
         project_id: int,
         metrics: list[Any],
@@ -119,7 +161,7 @@ def register_tools(server: Any, runtime: Any) -> None:
             ),
         )
 
-    @server.tool(auth=require_scopes("roistat:read"))
+    @server.tool(auth=require_scopes("roistat:read"), annotations=READ_ONLY)
     async def roistat_analytics_compare(
         project_id: int,
         metrics: list[Any],
@@ -159,7 +201,7 @@ def register_tools(server: Any, runtime: Any) -> None:
             ),
         )
 
-    @server.tool(auth=require_scopes("roistat:read"))
+    @server.tool(auth=require_scopes("roistat:read"), annotations=READ_ONLY)
     async def roistat_statistics_daily(
         project_id: int,
         period: str,
@@ -181,7 +223,7 @@ def register_tools(server: Any, runtime: Any) -> None:
             validate=lambda: adapter.validate_statistics(project_id, period, time_zone, channel),
         )
 
-    @server.tool(auth=require_scopes("roistat:read"))
+    @server.tool(auth=require_scopes("roistat:read"), annotations=READ_ONLY)
     async def roistat_list_orders(
         project_id: int,
         limit: int = 50,
@@ -198,7 +240,7 @@ def register_tools(server: Any, runtime: Any) -> None:
             validate=lambda: adapter.validate_list(project_id, limit=limit, offset=offset, filters=filters),
         )
 
-    @server.tool(auth=require_scopes("roistat:read"))
+    @server.tool(auth=require_scopes("roistat:read"), annotations=READ_ONLY)
     async def roistat_get_order(project_id: int, order_id: str) -> dict[str, Any]:
         """Read one order/deal card, including funnel status and visit chain."""
         adapter = registry.roistat()
@@ -210,7 +252,7 @@ def register_tools(server: Any, runtime: Any) -> None:
             validate=lambda: adapter.authorize_project(project_id),
         )
 
-    @server.tool(auth=require_scopes("roistat:read"))
+    @server.tool(auth=require_scopes("roistat:read"), annotations=READ_ONLY)
     async def roistat_list_order_statuses(project_id: int) -> dict[str, Any]:
         """List CRM funnel statuses mapped in the Roistat project."""
         adapter = registry.roistat()
@@ -222,7 +264,7 @@ def register_tools(server: Any, runtime: Any) -> None:
             validate=lambda: adapter.authorize_project(project_id),
         )
 
-    @server.tool(auth=require_scopes("roistat:read"))
+    @server.tool(auth=require_scopes("roistat:read"), annotations=READ_ONLY)
     async def roistat_list_leads(
         project_id: int, period: str, limit: int = 50, offset: int = 0
     ) -> dict[str, Any]:
@@ -238,7 +280,7 @@ def register_tools(server: Any, runtime: Any) -> None:
             ),
         )
 
-    @server.tool(auth=require_scopes("roistat:read"))
+    @server.tool(auth=require_scopes("roistat:read"), annotations=READ_ONLY)
     async def roistat_get_lead(project_id: int, lead_id: str) -> dict[str, Any]:
         """Read one proxy lead by Roistat id. Phone and email are redacted."""
         adapter = registry.roistat()
@@ -250,7 +292,7 @@ def register_tools(server: Any, runtime: Any) -> None:
             validate=lambda: adapter.authorize_project(project_id),
         )
 
-    @server.tool(auth=require_scopes("roistat:read"))
+    @server.tool(auth=require_scopes("roistat:read"), annotations=READ_ONLY)
     async def roistat_list_lead_duplicates(
         project_id: int, period: str, limit: int = 50, offset: int = 0
     ) -> dict[str, Any]:
@@ -266,7 +308,7 @@ def register_tools(server: Any, runtime: Any) -> None:
             ),
         )
 
-    @server.tool(auth=require_scopes("roistat:read"))
+    @server.tool(auth=require_scopes("roistat:read"), annotations=READ_ONLY)
     async def roistat_list_calls(
         project_id: int,
         limit: int = 50,
@@ -290,7 +332,7 @@ def register_tools(server: Any, runtime: Any) -> None:
             ),
         )
 
-    @server.tool(auth=require_scopes("roistat:read"))
+    @server.tool(auth=require_scopes("roistat:read"), annotations=READ_ONLY)
     async def roistat_calltracking_summary(project_id: int, period: dict[str, Any] | str) -> dict[str, Any]:
         """Read the official calltracking dashboard summary for one period."""
         adapter = registry.roistat()
@@ -302,7 +344,7 @@ def register_tools(server: Any, runtime: Any) -> None:
             validate=lambda: adapter.authorize_project(project_id),
         )
 
-    @server.tool(auth=require_scopes("roistat:read"))
+    @server.tool(auth=require_scopes("roistat:read"), annotations=READ_ONLY)
     async def roistat_list_visits(
         project_id: int,
         limit: int = 50,
@@ -325,7 +367,7 @@ def register_tools(server: Any, runtime: Any) -> None:
             ),
         )
 
-    @server.tool(auth=require_scopes("roistat:read"))
+    @server.tool(auth=require_scopes("roistat:read"), annotations=READ_ONLY)
     async def roistat_list_clients(
         project_id: int,
         limit: int = 50,
@@ -348,7 +390,7 @@ def register_tools(server: Any, runtime: Any) -> None:
             ),
         )
 
-    @server.tool(auth=require_scopes("roistat:read"))
+    @server.tool(auth=require_scopes("roistat:read"), annotations=READ_ONLY)
     async def roistat_funnel(
         project_id: int, period: dict[str, Any], funnel: list[dict[str, Any]]
     ) -> dict[str, Any]:
@@ -362,7 +404,60 @@ def register_tools(server: Any, runtime: Any) -> None:
             validate=lambda: adapter.validate_funnel(project_id, period, funnel),
         )
 
-    @server.tool(auth=require_scopes("roistat:write"))
+    @server.tool(auth=require_scopes("roistat:read"), annotations=READ_ONLY)
+    async def roistat_health_indicators(project_id: int, messages_per_indicator: int = 3) -> dict[str, Any]:
+        """Read the official project-state processes (CRM sync, counter, analytics rebuild).
+
+        Read-only; never starts a process. Status: ok, errors or not_finished.
+        """
+        adapter = registry.roistat()
+        return await _provider_read(
+            "roistat",
+            "health_indicators",
+            {"project_id": project_id, "messages_per_indicator": messages_per_indicator},
+            lambda: adapter.health_indicators(project_id, messages_per_indicator),
+            validate=lambda: adapter.authorize_project(project_id),
+        )
+
+    @server.tool(auth=require_scopes("roistat:read"), annotations=READ_ONLY)
+    async def roistat_list_channels(project_id: int, limit: int = 200) -> dict[str, Any]:
+        """List advertising channels (system and manually marked) used in a project."""
+        adapter = registry.roistat()
+        return await _provider_read(
+            "roistat",
+            "list_channels",
+            {"project_id": project_id, "limit": limit},
+            lambda: adapter.list_channels(project_id, limit),
+            validate=lambda: adapter.authorize_project(project_id),
+        )
+
+    @server.tool(auth=require_scopes("roistat:read"), annotations=READ_ONLY)
+    async def roistat_list_channel_costs(
+        project_id: int, limit: int = 50, offset: int = 0, source: str | None = None
+    ) -> dict[str, Any]:
+        """List manually entered channel costs. Optional source is a channel-name prefix."""
+        adapter = registry.roistat()
+        return await _provider_read(
+            "roistat",
+            "list_channel_costs",
+            {"project_id": project_id, "limit": limit, "offset": offset, "source": source},
+            lambda: adapter.list_channel_costs(project_id, limit=limit, offset=offset, source=source),
+            validate=lambda: adapter.authorize_project(project_id),
+        )
+
+    @server.tool(auth=require_scopes("roistat:read"), annotations=READ_ONLY)
+    async def roistat_list_managers(project_id: int, limit: int = 200) -> dict[str, Any]:
+        """List CRM managers known to a project. Email and phone are redacted."""
+        adapter = registry.roistat()
+        return await _provider_read(
+            "roistat",
+            "list_managers",
+            {"project_id": project_id, "limit": limit},
+            lambda: adapter.list_managers(project_id, limit),
+            validate=lambda: adapter.authorize_project(project_id),
+        )
+
+    @server.tool(auth=require_scopes("roistat:write"), annotations=PREPARE_WRITE)
     async def roistat_prepare_write(
         operation: str, project_id: int, payload: dict[str, Any]
     ) -> dict[str, Any]:
@@ -407,7 +502,7 @@ def register_tools(server: Any, runtime: Any) -> None:
             ),
         }
 
-    @server.tool(auth=require_scopes("roistat:write"))
+    @server.tool(auth=require_scopes("roistat:write"), annotations=APPLY_WRITE)
     async def roistat_apply_write(
         operation: str,
         project_id: int,

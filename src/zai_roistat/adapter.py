@@ -40,6 +40,12 @@ LOCAL_MAX_PER_MINUTE = 30
 LOCAL_MAX_PER_HOUR = 600
 DAILY_STATS_MAX_PER_HOUR = 3
 DEFAULT_LIMIT = 50
+MAX_CATALOG_ROWS = 500
+MAX_INDICATOR_GROUPS = 50
+MAX_INDICATORS = 100
+MAX_INDICATOR_MESSAGES = 20
+# Official status codes of /project/health/indicator/list.
+INDICATOR_STATES = {1: "ok", 2: "errors", 3: "not_finished"}
 REDACTED = "***redacted***"
 
 ALLOWED_METRICS = frozenset(
@@ -164,6 +170,7 @@ class _ReadSpec:
     method: str
     segments: tuple[str, ...]
     needs_project: bool = True
+    array_response: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -194,6 +201,15 @@ READ_SPECS: dict[str, _ReadSpec] = {
     "funnel": _ReadSpec("POST", ("project", "reports", "funnel", "data")),
     "list_visits": _ReadSpec("POST", ("project", "site", "visit", "list")),
     "list_clients": _ReadSpec("POST", ("project", "clients")),
+    # https://help-ru.roistat.com/API/methods/indicator/
+    "health_indicators": _ReadSpec("GET", ("project", "health", "indicator", "list")),
+    # https://help-ru.roistat.com/API/methods/channels/
+    "list_channels": _ReadSpec("POST", ("project", "analytics", "source", "list")),
+    "list_channel_costs": _ReadSpec(
+        "POST", ("project", "analytics", "source", "cost", "list"), array_response=True
+    ),
+    # https://help-ru.roistat.com/API/methods/managers/
+    "list_managers": _ReadSpec("POST", ("project", "integration", "manager", "list")),
 }
 
 WRITE_ALLOWLIST: dict[str, _WriteSpec] = {
@@ -567,6 +583,7 @@ class RoistatAdapter:
                     payload=payload,
                     params=query or None,
                     idempotent=idempotent,
+                    **({"array_response": True} if spec.array_response else {}),
                 )
             except ProviderRateLimited as exc:
                 self._last_rate_limited_at = time.monotonic()
@@ -1283,6 +1300,130 @@ class RoistatAdapter:
             "project_id": validated["project_id"],
             "items": items[:MAX_LIMIT],
             "completeness": _completeness(items, None, limit=MAX_LIMIT),
+            "status": response.get("status", "success"),
+        }
+
+    async def health_indicators(self, project_id: object, messages_per_indicator: int = 3) -> dict[str, Any]:
+        """Official project-state processes (``GET /project/health/indicator/list``)."""
+        project = self.authorize_project(project_id)
+        keep = _positive_int(messages_per_indicator, "messages_per_indicator", MAX_INDICATOR_MESSAGES)
+        response = await self._call("health_indicators", project_id=project)
+        groups = response.get("data")
+        if not isinstance(groups, list):
+            raise ProviderError("invalid health indicator response")
+        counts = {"ok": 0, "errors": 0, "not_finished": 0, "unknown": 0}
+        categories: list[dict[str, Any]] = []
+        for group in groups[:MAX_INDICATOR_GROUPS]:
+            if not isinstance(group, Mapping):
+                continue
+            indicators: list[dict[str, Any]] = []
+            raw_indicators = group.get("indicators")
+            for item in (raw_indicators if isinstance(raw_indicators, list) else [])[:MAX_INDICATORS]:
+                if not isinstance(item, Mapping):
+                    continue
+                state = INDICATOR_STATES.get(item.get("status"), "unknown")  # type: ignore[arg-type]
+                counts[state] += 1
+                messages = item.get("messages") if isinstance(item.get("messages"), list) else []
+                indicators.append(
+                    {
+                        "id": item.get("id"),
+                        "name": item.get("name"),
+                        "state": state,
+                        "status_code": item.get("status"),
+                        "is_running": item.get("is_running"),
+                        "is_executable": item.get("is_executable"),
+                        "messages": [
+                            {
+                                "state": INDICATOR_STATES.get(message.get("s"), "unknown"),
+                                "message": message.get("m"),
+                                "date": message.get("d"),
+                            }
+                            for message in messages[:keep]
+                            if isinstance(message, Mapping)
+                        ],
+                        "messages_truncated": len(messages) > keep,
+                    }
+                )
+            categories.append({"category": group.get("name"), "indicators": indicators})
+        healthy = None if not any(counts.values()) else counts["errors"] == 0 and counts["not_finished"] == 0
+        return {
+            "project_id": project,
+            "categories": categories,
+            "summary": {**counts, "healthy": healthy},
+            "completeness": "unknown" if not categories else "complete",
+            "source": "project/health/indicator/list",
+            "status": response.get("status", "success"),
+        }
+
+    async def list_channels(self, project_id: object, limit: int = 200) -> dict[str, Any]:
+        """Advertising channels used in the project (``POST /project/analytics/source/list``)."""
+        project = self.authorize_project(project_id)
+        page = _positive_int(limit, "limit", MAX_CATALOG_ROWS)
+        response = await self._call("list_channels", project_id=project)
+        items = _items_of(response, "data")
+        return {
+            "project_id": project,
+            "items": items[:page],
+            "total": response.get("total", len(items)),
+            "returned_count": min(len(items), page),
+            "truncated": len(items) > page,
+            "completeness": _completeness(items, response.get("total"), limit=page),
+            "source": "project/analytics/source/list",
+            "status": response.get("status", "success"),
+        }
+
+    async def list_channel_costs(
+        self,
+        project_id: object,
+        *,
+        limit: int = DEFAULT_LIMIT,
+        offset: int = 0,
+        source: str | None = None,
+    ) -> dict[str, Any]:
+        """Manually entered channel costs (``POST /project/analytics/source/cost/list``).
+
+        The provider returns every cost ever entered; slicing and the optional
+        ``source`` prefix filter are applied locally.
+        """
+        project = self.authorize_project(project_id)
+        page_limit, page_offset = self._page(limit, offset)
+        if source is not None and (not isinstance(source, str) or _CHANNEL.fullmatch(source) is None):
+            raise ValueError("source must be a Roistat channel system name")
+        response = await self._call("list_channel_costs", project_id=project)
+        rows = _items_of(response, "data")
+        if source:
+            rows = [
+                row
+                for row in rows
+                if isinstance(row, Mapping) and str(row.get("source", "")).startswith(source)
+            ]
+        window = rows[page_offset : page_offset + page_limit]
+        return {
+            "project_id": project,
+            "items": window,
+            "matched": len(rows),
+            "limit": page_limit,
+            "offset": page_offset,
+            "source_filter": source,
+            "truncated": page_offset + page_limit < len(rows),
+            "completeness": "unknown" if not rows else "complete",
+            "source": "project/analytics/source/cost/list",
+        }
+
+    async def list_managers(self, project_id: object, limit: int = 200) -> dict[str, Any]:
+        """CRM managers known to the project; email and phone are redacted."""
+        project = self.authorize_project(project_id)
+        page = _positive_int(limit, "limit", MAX_CATALOG_ROWS)
+        response = await self._call("list_managers", project_id=project)
+        items = _items_of(response, "data")
+        return {
+            "project_id": project,
+            "items": items[:page],
+            "total": response.get("total", len(items)),
+            "returned_count": min(len(items), page),
+            "truncated": len(items) > page,
+            "completeness": _completeness(items, response.get("total"), limit=page),
+            "source": "project/integration/manager/list",
             "status": response.get("status", "success"),
         }
 

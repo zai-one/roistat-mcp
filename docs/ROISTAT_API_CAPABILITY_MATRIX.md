@@ -31,6 +31,9 @@ Readback is the official method used to confirm state after a write. `n/a` means
 - [Clients](https://help-ru.roistat.com/API/methods/clients/)
 - [Calltracking](https://help-ru.roistat.com/API/methods/calltracking/)
 - [Visits](https://help-ru.roistat.com/API/methods/visit/)
+- [Project state indicators](https://help-ru.roistat.com/API/methods/indicator/)
+- [Advertising channels and costs](https://help-ru.roistat.com/API/methods/channels/)
+- [Managers](https://help-ru.roistat.com/API/methods/managers/)
 
 ## Official transport and limits
 
@@ -103,7 +106,14 @@ Readback is the official method used to confirm state after a write. `n/a` means
 | Advertising platform / channel create | none in official REST | rejected | write | high | none | `unsupported_by_official_api` | closed; UI only |
 | Advertising platform / channel delete | none in official REST | rejected | write | high | none | `unsupported_by_official_api` | closed; UI only |
 | CRM integration connect/disconnect | none in official REST | rejected | write | high | none | `unsupported_by_official_api` | closed; UI only |
-| Integration health / last-sync field | no dedicated official method | `roistat_health` | read | low | n/a | `unknown_needs_live_discovery` | inferred from projects + last report date; empty ≠ zero |
+| Project state indicators | `GET /project/health/indicator/list` | `roistat_health_indicators` | read | low | n/a | `verified_rest_read` | enabled; messages bounded; status 1/2/3 mapped to ok/errors/not_finished |
+| Run project-state process | `POST /project/health/indicator/{indicatorId}/run-script` | none | write | medium | indicator list | `verified_rest_write` | closed (starts provider jobs) |
+| Advertising channels | `POST /project/analytics/source/list` | `roistat_list_channels` | read | low | n/a | `verified_rest_read` | enabled; bounded |
+| Channel costs | `POST /project/analytics/source/cost/list` | `roistat_list_channel_costs` | read | low | n/a | `verified_rest_read` | enabled; documented bare-array response; local slice and source-prefix filter |
+| Channel cost add/update/delete | `POST /project/analytics/source/cost/{add,update,delete}` | rejected | write | medium/high | cost list | `verified_rest_write` | closed in this version |
+| CRM managers | `POST /project/integration/manager/list` | `roistat_list_managers` | read | low | n/a | `verified_rest_read` | enabled; email/phone redacted |
+| CRM manager add/update/delete | `POST /project/integration/manager/{add,update,delete}` | rejected | write | medium/high | manager list | `verified_rest_write` | closed |
+| Integration health / last-sync field | `GET /project/health/indicator/list` (see above) | `roistat_health` | read | low | n/a | `unknown_needs_live_discovery` | `roistat_health` stays inferred from projects + last report date; use `roistat_health_indicators` for official process states; empty ≠ zero |
 | Generic passthrough / browser automation | n/a | none | n/a | high | n/a | `unsupported_by_official_api` | forbidden |
 
 ## Official MCP versus this provider

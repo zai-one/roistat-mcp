@@ -19,6 +19,7 @@ Try asking your assistant:
 | Understand performance | Analytics reports, period comparisons and daily statistics with supported metrics and attribution models. |
 | Follow the sales funnel | Orders, statuses, leads and funnel reports for your allowed projects. |
 | Check the underlying activity | Calltracking, visits, clients and duplicate-lead reports, with supported personal fields masked. |
+| Check setup and spend inputs | Official project-state indicators (CRM sync, counter, analytics rebuild), advertising channels, manually entered channel costs and CRM managers (read-only). |
 | Share a traceable report | [Analytics bundles](docs/ANALYTICS_BUNDLE.md): one or two periods, provider totals, attribution, exact request parameters and JSON/CSV. Missing values stay distinct from zero. |
 
 ## Quick start
@@ -90,6 +91,17 @@ uv run --frozen python scripts/verify_install.py
 Tests use synthetic fixtures. A passing test run does not establish live provider connectivity.
 
 </details>
+
+## Updates
+
+Ask your assistant to run `roistat_check_update`. It compares the installed version with the
+[latest release](https://github.com/zai-one/roistat-mcp/releases) through the public GitHub API
+(no credentials, 3-second timeout, result cached for 24 hours next to the state file) and returns
+the current and latest versions, the release notes link and the matching update command
+(`git pull --ff-only && uv sync --frozen` for a checkout, `uv tool install --force ...` for a release package).
+When a newer version is already known from the cache, the server mentions it once in its startup
+instructions and in `roistat_health`. Nothing is ever installed automatically. Offline, the check
+reports `status: unknown` and the server keeps working. Set `ROISTAT_DISABLE_UPDATE_CHECK=1` to turn it off.
 
 ## Built by ZAI.ONE
 

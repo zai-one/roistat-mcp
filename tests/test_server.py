@@ -45,6 +45,20 @@ READ_CASES = {
     "roistat_list_visits": PROJECT,
     "roistat_list_clients": PROJECT,
     "roistat_funnel": {**PROJECT, "period": PERIOD, "funnel": [{"title": "New", "statuses": ["1"]}]},
+    "roistat_health_indicators": PROJECT,
+    "roistat_list_channels": PROJECT,
+    "roistat_list_channel_costs": PROJECT,
+    "roistat_list_managers": PROJECT,
+}
+NEW_TOOLS = {
+    "roistat_dimension_values",
+    "roistat_custom_metrics",
+    "roistat_analytics_bundle",
+    "roistat_health_indicators",
+    "roistat_list_channels",
+    "roistat_list_channel_costs",
+    "roistat_list_managers",
+    "roistat_check_update",
 }
 WRITE = {
     "operation": "update_order_status",
@@ -158,11 +172,7 @@ async def test_original_contract_and_no_mcp_approval_accept(tmp_path, pair):
     contract = json.loads((Path(__file__).parents[1] / "contracts/roistat.json").read_text())["tools"]
     async with Client(create_server(config(tmp_path, pair), transport="stdio")) as client:
         tools = await client.list_tools()
-        assert {tool.name for tool in tools} == set(contract) | {
-            "roistat_dimension_values",
-            "roistat_custom_metrics",
-            "roistat_analytics_bundle",
-        }
+        assert {tool.name for tool in tools} == set(contract) | NEW_TOOLS
         for tool in tools:
             if tool.name not in contract:
                 continue
@@ -237,7 +247,7 @@ async def test_http_scopes_account_and_actor_prevent_cross_use(tmp_path, pair):
     settings = config(tmp_path, pair, write_enabled=True)
     server = create_server(settings, http_factory=recorder.factory)
     async with connection(server, token(pair, scopes=["roistat:read"])) as client:
-        assert len(await client.list_tools()) == 21
+        assert len(await client.list_tools()) == 26
         with pytest.raises(ToolError):
             await client.call_tool("roistat_prepare_write", WRITE)
     async with connection(server, token(pair)) as client:
@@ -289,10 +299,14 @@ async def test_stdio_process_loads_real_service(tmp_path):
         StdioTransport(
             command=sys.executable,
             args=["-m", "zai_roistat"],
-            env={"ROISTAT_API_KEY_FILE": str(secret), "ROISTAT_STATE_PATH": str(tmp_path / "stdio.sqlite")},
+            env={
+                "ROISTAT_API_KEY_FILE": str(secret),
+                "ROISTAT_STATE_PATH": str(tmp_path / "stdio.sqlite"),
+                "ROISTAT_DISABLE_UPDATE_CHECK": "1",
+            },
         )
     ) as client:
-        assert len(await client.list_tools()) == 23
+        assert len(await client.list_tools()) == 28
         with pytest.raises(ToolError):
             await client.call_tool("roistat_get_order", {"project_id": 0, "order_id": "x"})
 
@@ -339,3 +353,17 @@ async def test_cancelled_write_stops_upstream_before_releasing_lease(tmp_path, p
     with sqlite3.connect(settings.state_path) as db:
         assert db.execute("SELECT COUNT(*) FROM leases").fetchone()[0] == 0
         assert db.execute("SELECT status FROM writes").fetchone()[0] == "pending"
+
+
+async def test_tool_annotations_match_side_effects(tmp_path, pair):
+    async with Client(create_server(config(tmp_path, pair), transport="stdio")) as client:
+        tools = {tool.name: tool for tool in await client.list_tools()}
+    for name, tool in tools.items():
+        hints = tool.annotations
+        assert hints is not None, name
+        if name in {"roistat_prepare_write", "roistat_apply_write"}:
+            assert hints.readOnlyHint is False, name
+        else:
+            assert hints.readOnlyHint is True and hints.destructiveHint is False, name
+    assert tools["roistat_apply_write"].annotations.destructiveHint is True
+    assert tools["roistat_prepare_write"].annotations.destructiveHint is False
