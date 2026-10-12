@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.4.0
 
 - `roistat_health_indicators`: official project-state processes (`GET /project/health/indicator/list`), read-only.
 - `roistat_list_channels` and `roistat_list_channel_costs`: advertising channels and manually entered costs
