@@ -10,6 +10,12 @@
   public API, 3 s timeout, 24 h cache, graceful offline, never auto-updates. A cached
   "update available" hint appears in server instructions and `roistat_health`.
   Opt out with `ROISTAT_DISABLE_UPDATE_CHECK=1`.
+- Update check hardening: only plain version tags (`v1.2.3`) are accepted, from GitHub and from the
+  cache; anything else is treated as no release and never reaches versions, commands or instructions.
+  Every attempt is recorded: after a failure no new request for 30 minutes, `force=true` at most once
+  a minute; the startup refresh follows the same rules. The clean-install gate and tests disable it.
+- `roistat_health_indicators` tolerates odd provider values (unknown state instead of an error) and
+  truncates names and messages to 500 characters.
 - MCP tool annotations (`readOnlyHint`, `destructiveHint`, `idempotentHint`, `openWorldHint`) on every tool.
 - Capability matrix lists the indicator, channel and manager sections; their write methods stay closed.
 

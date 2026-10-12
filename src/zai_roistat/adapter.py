@@ -44,6 +44,8 @@ MAX_CATALOG_ROWS = 500
 MAX_INDICATOR_GROUPS = 50
 MAX_INDICATORS = 100
 MAX_INDICATOR_MESSAGES = 20
+MAX_INDICATOR_TEXT = 500
+MAX_INDICATOR_DATE = 64
 # Official status codes of /project/health/indicator/list.
 INDICATOR_STATES = {1: "ok", 2: "errors", 3: "not_finished"}
 REDACTED = "***redacted***"
@@ -256,6 +258,31 @@ def _validate_base_url(base_url: str) -> str:
     ):
         raise ValueError("Roistat base URL must be the official HTTPS API v1 endpoint")
     return OFFICIAL_BASE_URL
+
+
+def _indicator_state(value: object) -> str:
+    """Map a provider status code to a state; anything odd (lists, dicts, bools...) is unknown."""
+    if isinstance(value, str) and value.isascii() and value.isdigit() and len(value) <= 3:
+        value = int(value)
+    if isinstance(value, int) and not isinstance(value, bool):
+        return INDICATOR_STATES.get(value, "unknown")
+    return "unknown"
+
+
+def _indicator_text(value: object, limit: int = MAX_INDICATOR_TEXT) -> str | None:
+    """Provider text, bounded; non-text values are dropped rather than echoed."""
+    return value[:limit] if isinstance(value, str) else None
+
+
+def _indicator_scalar(value: object) -> int | str | None:
+    """Provider id or status code: an integer or bounded string, nothing else."""
+    if isinstance(value, int) and not isinstance(value, bool):
+        return value
+    return _indicator_text(value, MAX_OBJECT_ID_LEN)
+
+
+def _indicator_flag(value: object) -> bool | None:
+    return value if isinstance(value, bool) else None
 
 
 def _positive_int(value: object, field: str, maximum: int) -> int:
@@ -1321,22 +1348,22 @@ class RoistatAdapter:
             for item in (raw_indicators if isinstance(raw_indicators, list) else [])[:MAX_INDICATORS]:
                 if not isinstance(item, Mapping):
                     continue
-                state = INDICATOR_STATES.get(item.get("status"), "unknown")  # type: ignore[arg-type]
+                state = _indicator_state(item.get("status"))
                 counts[state] += 1
                 messages = item.get("messages") if isinstance(item.get("messages"), list) else []
                 indicators.append(
                     {
-                        "id": item.get("id"),
-                        "name": item.get("name"),
+                        "id": _indicator_scalar(item.get("id")),
+                        "name": _indicator_text(item.get("name")),
                         "state": state,
-                        "status_code": item.get("status"),
-                        "is_running": item.get("is_running"),
-                        "is_executable": item.get("is_executable"),
+                        "status_code": _indicator_scalar(item.get("status")),
+                        "is_running": _indicator_flag(item.get("is_running")),
+                        "is_executable": _indicator_flag(item.get("is_executable")),
                         "messages": [
                             {
-                                "state": INDICATOR_STATES.get(message.get("s"), "unknown"),
-                                "message": message.get("m"),
-                                "date": message.get("d"),
+                                "state": _indicator_state(message.get("s")),
+                                "message": _indicator_text(message.get("m")),
+                                "date": _indicator_text(message.get("d"), MAX_INDICATOR_DATE),
                             }
                             for message in messages[:keep]
                             if isinstance(message, Mapping)
@@ -1344,7 +1371,7 @@ class RoistatAdapter:
                         "messages_truncated": len(messages) > keep,
                     }
                 )
-            categories.append({"category": group.get("name"), "indicators": indicators})
+            categories.append({"category": _indicator_text(group.get("name")), "indicators": indicators})
         healthy = None if not any(counts.values()) else counts["errors"] == 0 and counts["not_finished"] == 0
         return {
             "project_id": project,
