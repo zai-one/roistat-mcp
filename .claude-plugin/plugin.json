@@ -1,6 +1,6 @@
 {
   "name": "roistat",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Roistat marketing analytics (channels, ROI, leads, calls) with approval-gated writes and agent skills",
   "author": {
     "name": "ZAI.ONE",
@@ -15,7 +15,7 @@
       "command": "uvx",
       "args": [
         "--from",
-        "git+https://github.com/zai-one/roistat-mcp",
+        "git+https://github.com/zai-one/roistat-mcp@v0.5.0",
         "roistat-mcp"
       ],
       "env": {

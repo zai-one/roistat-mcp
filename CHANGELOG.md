@@ -1,15 +1,16 @@
 # Changelog
 
-## Unreleased
+## 0.5.0
 
 - License: LicenseRef-ZAI-ONE 2.0 (source-available). Free install and use for yourself and your organisation, including commercial work; issues and pull requests welcome; copying code into other projects, redistribution, embedding and competing hosted services need written permission. Earlier releases keep their LicenseRef-ZAI-ONE 1.0 terms (see NOTICE). README first screen: one-line scope, why this MCP, maintenance and update check.
 
 - Agent layer: router `instructions` (≤1200 chars; describes prepare → operator accept → apply), compact template descriptions and titles on all 28 tools.
-- Toolsets `meta`, `analytics`, `orders_visits`, `calls`, `settings_write` (`ROISTAT_TOOLSETS`, `ROISTAT_TOOLS`, `ROISTAT_DISABLED_TOOLS`, `ROISTAT_READ_ONLY=1`); `roistat://toolsets`.
+- Toolsets `meta`, `analytics`, `orders_visits`, `calls`, `settings_write` (`ROISTAT_TOOLSETS`, `ROISTAT_TOOLS`, `ROISTAT_DISABLED_TOOLS`, `ROISTAT_READ_ONLY=1`); `roistat://toolsets`. All toolsets stay enabled by default, so existing setups keep every tool.
 - `format="markdown_table"` on `roistat_analytics_report` and `roistat_analytics_compare` (unknown values stay blank).
 - Resources `roistat://playbook`, `roistat://guide/{metrics,dimensions,errors}`; prompts `channel_report`, `period_compare`.
 - Self-contained skills `roistat-channel-roi`, `roistat-lead-audit`, `roistat-write-safe`; Claude Code plugin manifest, Cursor rule, `.agents/skills`.
 - `scripts/token_budget.py` + tests gate instruction, description and SKILL.md sizes.
+- Install snippets in the Claude Code plugin manifest and README pin `git+https://github.com/zai-one/roistat-mcp@v0.5.0` instead of the moving default branch.
 
 ## 0.4.0
 
