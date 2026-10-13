@@ -15,3 +15,7 @@
 
 Rules: empty/partial ≠ zero (check `completeness`); PII is always redacted; money in project currency.
 Skills: `roistat-channel-roi`, `roistat-lead-audit`, `roistat-write-safe`.
+Opt-in `extras` toolset (`ROISTAT_TOOLSETS=default,extras`): `roistat_extra_read` — calltracking
+scripts and phone pool, events log, one client's activity feed.
+Guides: `roistat://guide/metrics`, `roistat://guide/dimensions`, `roistat://guide/errors`,
+`roistat://guide/tool-map` (every tool and toolset).

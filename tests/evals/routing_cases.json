@@ -1,0 +1,22 @@
+[
+  {"request": "какой ROI у каналов за сентябрь?", "route": "roi", "tool": "roistat_analytics_report"},
+  {"request": "сколько стоит лид (CPL) по директу", "route": "roi", "tool": "roistat_analytics_report"},
+  {"request": "what's our channel ROI and revenue this month", "route": "roi", "tool": "roistat_analytics_report"},
+  {"request": "сравни с прошлым месяцем, какая динамика", "route": "compare", "tool": "roistat_analytics_compare"},
+  {"request": "compare this quarter vs last one", "route": "compare", "tool": "roistat_analytics_compare"},
+  {"request": "покажи заявки за неделю", "route": "leads", "tool": "roistat_list_leads"},
+  {"request": "есть ли дубли среди лидов?", "route": "leads", "tool": "roistat_list_lead_duplicates"},
+  {"request": "list recent orders please", "route": "leads", "tool": "roistat_list_orders"},
+  {"request": "сколько было звонков вчера", "route": "calls", "tool": "roistat_list_calls"},
+  {"request": "какие сценарии коллтрекинга настроены", "route": "calls", "tool": "roistat_extra_read"},
+  {"request": "show tracked calls summary", "route": "calls", "tool": "roistat_calltracking_summary"},
+  {"request": "откуда пришли посетители, визиты", "route": "visits", "tool": "roistat_list_visits"},
+  {"request": "найди клиента и его события", "route": "visits", "tool": "roistat_list_clients"},
+  {"request": "who visited the site yesterday", "route": "visits", "tool": "roistat_list_visits"},
+  {"request": "поменяй статус заказа 123 на оплачен", "route": "write", "tool": "roistat_prepare_write"},
+  {"request": "импорт заказа из CRM", "route": "write", "tool": "roistat_prepare_write"},
+  {"request": "delete that test sale, number 55", "route": "write", "tool": "roistat_prepare_write"},
+  {"request": "какие у меня проекты?", "route": "health", "tool": "roistat_health"},
+  {"request": "интеграция отдает ошибка, проверь", "route": "health", "tool": "roistat_health"},
+  {"request": "health check, hit a rate limit?", "route": "health", "tool": "roistat_health"}
+]
