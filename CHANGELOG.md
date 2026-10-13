@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- Agent layer: router `instructions` (≤1200 chars; describes prepare → operator accept → apply), compact template descriptions and titles on all 28 tools.
+- Toolsets `meta`, `analytics`, `orders_visits`, `calls`, `settings_write` (`ROISTAT_TOOLSETS`, `ROISTAT_TOOLS`, `ROISTAT_DISABLED_TOOLS`, `ROISTAT_READ_ONLY=1`); `roistat://toolsets`.
+- `format="markdown_table"` on `roistat_analytics_report` and `roistat_analytics_compare` (unknown values stay blank).
+- Resources `roistat://playbook`, `roistat://guide/{metrics,dimensions,errors}`; prompts `channel_report`, `period_compare`.
+- Self-contained skills `roistat-channel-roi`, `roistat-lead-audit`, `roistat-write-safe`; Claude Code plugin manifest, Cursor rule, `.agents/skills`.
+- `scripts/token_budget.py` + tests gate instruction, description and SKILL.md sizes.
+
 ## 0.4.0
 
 - `roistat_health_indicators`: official project-state processes (`GET /project/health/indicator/list`), read-only.

@@ -73,6 +73,84 @@ You should see projects accessible to your API key and the supported report cata
 
 If tools do not appear, check the absolute path, whether the client can find `uv`, and the `--check-config` result. For access errors, check account credentials and permissions. [Installation and troubleshooting](INSTALL.md).
 
+
+<!-- agent-block:start -->
+## Install in your agent
+
+Run `roistat-mcp` straight from GitHub with [uv](https://docs.astral.sh/uv/). Pin a release tag (`@vX.Y.Z`) for
+reproducible installs; placeholders below are examples, keep secrets in files outside the repo.
+
+**Claude Code**
+
+```bash
+claude mcp add roistat --env ROISTAT_API_KEY_FILE=/path/to/roistat.token --env ROISTAT_PROJECT_ALLOWLIST=12345 --env ROISTAT_STATE_PATH=/path/to/roistat.sqlite -- uvx --from git+https://github.com/zai-one/roistat-mcp roistat-mcp
+```
+
+Skills for Claude Code: copy `skills/*` into `~/.claude/skills/` (or install this repo as a plugin — it
+ships `.claude-plugin/plugin.json` with the skills and the MCP server).
+
+**Cursor** — `.cursor/mcp.json` ([one-click install](cursor://anysphere.cursor-deeplink/mcp/install?name=roistat&config=eyJjb21tYW5kIjogInV2eCIsICJhcmdzIjogWyItLWZyb20iLCAiZ2l0K2h0dHBzOi8vZ2l0aHViLmNvbS96YWktb25lL3JvaXN0YXQtbWNwIiwgInJvaXN0YXQtbWNwIl0sICJlbnYiOiB7IlJPSVNUQVRfQVBJX0tFWV9GSUxFIjogIi9wYXRoL3RvL3JvaXN0YXQudG9rZW4iLCAiUk9JU1RBVF9QUk9KRUNUX0FMTE9XTElTVCI6ICIxMjM0NSIsICJST0lTVEFUX1NUQVRFX1BBVEgiOiAiL3BhdGgvdG8vcm9pc3RhdC5zcWxpdGUifX0=)):
+
+```json
+{
+  "mcpServers": {
+    "roistat": {
+      "command": "uvx",
+      "args": [
+        "--from",
+        "git+https://github.com/zai-one/roistat-mcp",
+        "roistat-mcp"
+      ],
+      "env": {
+        "ROISTAT_API_KEY_FILE": "/path/to/roistat.token",
+        "ROISTAT_PROJECT_ALLOWLIST": "12345",
+        "ROISTAT_STATE_PATH": "/path/to/roistat.sqlite"
+      }
+    }
+  }
+}
+```
+
+**Codex** — `~/.codex/config.toml` (skills: copy `skills/*` into `~/.codex/skills/`, or keep the
+repo's `.agents/skills` link):
+
+```toml
+[mcp_servers.roistat]
+command = "uvx"
+args = ["--from", "git+https://github.com/zai-one/roistat-mcp", "roistat-mcp"]
+env = { ROISTAT_API_KEY_FILE = "/path/to/roistat.token", ROISTAT_PROJECT_ALLOWLIST = "12345", ROISTAT_STATE_PATH = "/path/to/roistat.sqlite" }
+```
+
+**Claude Desktop** — `claude_desktop_config.json`: the same `mcpServers` block as Cursor.
+
+## Skills (agent playbooks)
+
+Each skill is a self-contained folder `skills/<name>/` (`SKILL.md` + its own `references/`,
+`templates/`); copy the folder and it works. Agents load the short `SKILL.md` only when the task matches
+and open the other files on demand. Clients without skills get the same flows as MCP prompts and the
+`roistat://playbook` / `roistat://guide/{topic}` resources.
+
+| Skill | What it does |
+|---|---|
+| `roistat-channel-roi` | ROI, CPL, CPO and revenue by channel with period comparison. |
+| `roistat-lead-audit` | Duplicates, untagged leads, unattributed calls, orders without visit chain. |
+| `roistat-write-safe` | Order status/import/delete via prepare, operator acceptance and apply with readback. |
+
+## Toolsets and read-only mode
+
+`ROISTAT_TOOLSETS=all` (default) or a comma list (see `roistat://toolsets`); `ROISTAT_TOOLS=a,b` adds single tools,
+`ROISTAT_DISABLED_TOOLS=a,b` removes them, `ROISTAT_READ_ONLY=1` removes every write/paid tool.
+
+## Example requests
+
+- Какая окупаемость каналов за сентябрь по сравнению с августом?
+- Сколько стоит лид в Директе и в SEO?
+- Найди дыры в разметке: заявки и звонки без источника.
+- Покажи воронку статусов за прошлый месяц.
+- Сделай таблицу ROI по кампаниям Яндекс.Директа.
+- Смени статус заказа 123 — сначала покажи черновик.
+<!-- agent-block:end -->
+
 ## Access and limits
 
 Choose the same attribution model when comparing periods. Custom-metric discovery does not make every metric queryable: the report tool uses a defined metric list. Changes to Roistat data need separate configuration and approval.

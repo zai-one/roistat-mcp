@@ -20,6 +20,9 @@ from fastmcp.server.dependencies import get_access_token
 
 from zai_roistat import __version__
 from zai_roistat.adapter import RoistatAdapter
+from zai_roistat.agent_layer import apply as apply_agent_layer
+from zai_roistat.agent_layer import router_instructions
+from zai_roistat.agent_profile import PROFILE
 from zai_roistat.analytics_bundle import register_bundle
 from zai_roistat.approvals import ApprovalRecord, ApprovalStore
 from zai_roistat.coalescing import AsyncSingleFlight
@@ -313,11 +316,12 @@ def create_server(
         version=__version__,
         auth=auth,
         mask_error_details=True,
-        instructions=SERVER_INSTRUCTIONS + (f" {hint}" if hint else ""),
+        instructions=router_instructions(PROFILE, hint),
     )
     runtime = Runtime(config, transport, http_factory)
     register_tools(ToolRegistrar(server, runtime), runtime)
     register_bundle(ToolRegistrar(server, runtime), runtime)
+    apply_agent_layer(server, PROFILE)
     return server
 
 
