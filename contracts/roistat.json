@@ -193,7 +193,7 @@
         "additionalProperties": true,
         "type": "object"
       },
-      "description": "Compare two periods; missing values stay unknown, never zero. Use for week/month over week/month; format=\"markdown_table\" gives now/prev/Δ columns."
+      "description": "Compare two periods; missing values stay unknown, never zero. Use for week/month over week/month; format=\"markdown_table\" gives now/prev/delta columns."
     },
     "roistat_statistics_daily": {
       "inputSchema": {

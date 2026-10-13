@@ -31,7 +31,7 @@ DESCRIPTIONS = {
     "Use for channel ROI; for two periods use `roistat_analytics_compare`. "
     'format="markdown_table" is compact.',
     "roistat_analytics_compare": "Compare two periods; missing values stay unknown, never zero. Use for "
-    'week/month over week/month; format="markdown_table" gives now/prev/Δ columns.',
+    'week/month over week/month; format="markdown_table" gives now/prev/delta columns.',
     "roistat_analytics_bundle": "Bundle one or two reports with provider totals, attribution and JSON/CSV. "
     "Use for client deliverables; for quick answers use `roistat_analytics_report`.",
     "roistat_statistics_daily": "Read daily visit statistics for a period. Use for day-by-day trends. "
