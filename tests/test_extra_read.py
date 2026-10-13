@@ -20,3 +20,20 @@ async def test_unknown_kind_rejected(kind):
         pytest.skip("adapter class name differs")
     with pytest.raises(ValueError):
         await obj.extra_read(kind, 1)
+
+
+async def test_extra_read_client_feed_payload_and_redaction():
+    obj = object.__new__(mod.RoistatAdapter)
+    seen = {}
+
+    async def fake_call(kind, *, project_id=None, payload=None, **kw):
+        seen.update(kind=kind, payload=payload)
+        return {"data": [{"id": "1", "phone": "+7999"}], "total": 1}
+
+    obj.authorize_project = lambda p, writing=False: str(p)
+    obj._call = fake_call
+    out = await obj.extra_read("client_feed", 12345, client_id="c-1")
+    assert seen == {"kind": "client_feed", "payload": {"client_id": "c-1"}}
+    assert out["items"][0]["phone"] != "+7999" and out["source"] == "project/clients/detail/feed"
+    with pytest.raises(ValueError):
+        await obj.extra_read("client_feed", 12345)
