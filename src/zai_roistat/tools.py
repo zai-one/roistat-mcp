@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from datetime import UTC, datetime, timedelta
-from typing import Any, cast
+from typing import Any, Literal, cast
 from uuid import UUID, uuid4
 
 from zai_roistat import update_check
@@ -36,6 +37,79 @@ APPLY_WRITE: dict[str, bool] = {
     "idempotentHint": False,
     "openWorldHint": True,
 }
+
+
+def _cell(value: Any) -> str:
+    if isinstance(value, Mapping):
+        value = value.get("title") or value.get("value") or value.get("name")
+    if isinstance(value, float):
+        value = f"{value:.2f}".rstrip("0").rstrip(".")
+    text = "" if value is None else str(value)
+    return text.replace("|", "\\|").replace("\n", " ")[:120]
+
+
+def _dimension_cells(item: Mapping[str, Any], dimensions: list[str]) -> list[str]:
+    dims = item.get("dimensions")
+    dims = dims if isinstance(dims, Mapping) else {}
+    return [_cell(dims.get(name)) for name in dimensions]
+
+
+def report_markdown(result: Mapping[str, Any], dimensions: list[str]) -> dict[str, Any]:
+    """Render analytics items as one Markdown table (dimensions x metric values)."""
+    items = [item for item in result.get("items", []) if isinstance(item, Mapping)]
+    names: list[str] = []
+    for item in items:
+        for row in item.get("metrics") or []:
+            if isinstance(row, Mapping):
+                name = str(row.get("metric_name") or row.get("metric") or "")
+                if name and name not in names:
+                    names.append(name)
+    lines = ["| " + " | ".join([*dimensions, *names]) + " |", "|" + "---|" * (len(dimensions) + len(names))]
+    for item in items:
+        values = {
+            str(row.get("metric_name") or row.get("metric") or ""): row.get("value")
+            for row in item.get("metrics") or []
+            if isinstance(row, Mapping)
+        }
+        lines.append(
+            "| "
+            + " | ".join([*_dimension_cells(item, dimensions), *(_cell(values.get(n)) for n in names)])
+            + " |"
+        )
+    return {
+        "format": "markdown_table",
+        "period": result.get("period"),
+        "completeness": result.get("completeness"),
+        "rows": len(items),
+        "markdown": "\n".join(lines),
+    }
+
+
+def compare_markdown(result: Mapping[str, Any], dimensions: list[str]) -> dict[str, Any]:
+    """Render a period comparison as Markdown: current / previous / delta per metric; unknown stays blank."""
+    items = [item for item in result.get("items", []) if isinstance(item, Mapping)]
+    names: list[str] = []
+    for item in items:
+        for name in item.get("metrics") or {}:
+            if name not in names:
+                names.append(name)
+    header = [*dimensions, *(f"{n} {suffix}" for n in names for suffix in ("now", "prev", "Δ"))]
+    lines = ["| " + " | ".join(header) + " |", "|" + "---|" * len(header)]
+    for item in items:
+        metrics = item.get("metrics") or {}
+        cells = _dimension_cells(item, dimensions)
+        for name in names:
+            change = metrics.get(name) or {}
+            cells += [_cell(change.get("current")), _cell(change.get("previous")), _cell(change.get("delta"))]
+        lines.append("| " + " | ".join(cells) + " |")
+    return {
+        "format": "markdown_table",
+        "current": result.get("current"),
+        "previous": result.get("previous"),
+        "completeness": result.get("completeness"),
+        "rows": len(items),
+        "markdown": "\n".join(lines),
+    }
 
 
 def register_tools(server: Any, runtime: Any) -> None:
@@ -141,10 +215,11 @@ def register_tools(server: Any, runtime: Any) -> None:
         period: dict[str, Any],
         attribution: str | None = None,
         interval: str | None = None,
+        format: Literal["json", "markdown_table"] = "json",
     ) -> dict[str, Any]:
         """Run a bounded Roistat analytics report with an allowlisted metric set."""
         adapter = registry.roistat()
-        return await _provider_read(
+        result = await _provider_read(
             "roistat",
             "analytics_report",
             {
@@ -160,6 +235,7 @@ def register_tools(server: Any, runtime: Any) -> None:
                 project_id, metrics, dimensions, period, attribution=attribution, interval=interval
             ),
         )
+        return report_markdown(result, dimensions) if format == "markdown_table" else result
 
     @server.tool(auth=require_scopes("roistat:read"), annotations=READ_ONLY)
     async def roistat_analytics_compare(
@@ -169,10 +245,11 @@ def register_tools(server: Any, runtime: Any) -> None:
         current_period: dict[str, Any],
         previous_period: dict[str, Any],
         attribution: str | None = None,
+        format: Literal["json", "markdown_table"] = "json",
     ) -> dict[str, Any]:
         """Compare two analytics periods without treating missing values as zero."""
         adapter = registry.roistat()
-        return await _provider_read(
+        result = await _provider_read(
             "roistat",
             "analytics_compare",
             {
@@ -200,6 +277,7 @@ def register_tools(server: Any, runtime: Any) -> None:
                 ),
             ),
         )
+        return compare_markdown(result, dimensions) if format == "markdown_table" else result
 
     @server.tool(auth=require_scopes("roistat:read"), annotations=READ_ONLY)
     async def roistat_statistics_daily(

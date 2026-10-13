@@ -12,7 +12,7 @@
         "additionalProperties": true,
         "type": "object"
       },
-      "description": "List Roistat projects visible to the server-side API key."
+      "description": "List Roistat projects visible to the key. Use first for project_id. Cost: free."
     },
     "roistat_capabilities": {
       "inputSchema": {
@@ -24,7 +24,7 @@
         "additionalProperties": true,
         "type": "object"
       },
-      "description": "Return the fixed Roistat capability matrix without calling the API."
+      "description": "Return the fixed capability matrix (what is readable/writable). Use when unsure a task is supported. Cost: free, no API call."
     },
     "roistat_health": {
       "inputSchema": {
@@ -48,7 +48,7 @@
         "additionalProperties": true,
         "type": "object"
       },
-      "description": "Probe Roistat auth, freshness, empty/partial state, rate-limit and drift."
+      "description": "Probe auth, data freshness, partial state, rate limits. Use when numbers look wrong; for counter/CRM sync use `roistat_health_indicators`. Cost: 1 API call."
     },
     "roistat_analytics_catalog": {
       "inputSchema": {
@@ -67,7 +67,7 @@
         "additionalProperties": true,
         "type": "object"
       },
-      "description": "List documented analytics metrics, dimensions and attribution models."
+      "description": "List metrics, dimensions and attribution models. Use before any analytics report; details in roistat://guide/metrics. Cost: free."
     },
     "roistat_analytics_report": {
       "inputSchema": {
@@ -111,6 +111,14 @@
               }
             ],
             "default": null
+          },
+          "format": {
+            "default": "json",
+            "enum": [
+              "json",
+              "markdown_table"
+            ],
+            "type": "string"
           }
         },
         "required": [
@@ -125,7 +133,7 @@
         "additionalProperties": true,
         "type": "object"
       },
-      "description": "Run a bounded Roistat analytics report with an allowlisted metric set."
+      "description": "Run one analytics report: metrics x marker_level dimensions for a period. Use for channel ROI; for two periods use `roistat_analytics_compare`. format=\"markdown_table\" is compact."
     },
     "roistat_analytics_compare": {
       "inputSchema": {
@@ -162,6 +170,14 @@
               }
             ],
             "default": null
+          },
+          "format": {
+            "default": "json",
+            "enum": [
+              "json",
+              "markdown_table"
+            ],
+            "type": "string"
           }
         },
         "required": [
@@ -177,7 +193,7 @@
         "additionalProperties": true,
         "type": "object"
       },
-      "description": "Compare two analytics periods without treating missing values as zero."
+      "description": "Compare two periods; missing values stay unknown, never zero. Use for week/month over week/month; format=\"markdown_table\" gives now/prev/Δ columns."
     },
     "roistat_statistics_daily": {
       "inputSchema": {
@@ -222,7 +238,7 @@
         "additionalProperties": true,
         "type": "object"
       },
-      "description": "Read daily visit-period statistics. Official extra cap is 5 requests/hour."
+      "description": "Read daily visit statistics for a period. Use for day-by-day trends. Cost: provider cap 5 requests/hour."
     },
     "roistat_list_orders": {
       "inputSchema": {
@@ -265,7 +281,7 @@
         "additionalProperties": true,
         "type": "object"
       },
-      "description": "List bounded Roistat/CRM orders. Empty pages stay unknown, not zero."
+      "description": "List CRM orders (bounded pages; empty = unknown). Use for deal lists; one card via `roistat_get_order`."
     },
     "roistat_get_order": {
       "inputSchema": {
@@ -288,7 +304,7 @@
         "additionalProperties": true,
         "type": "object"
       },
-      "description": "Read one order/deal card, including funnel status and visit chain."
+      "description": "Read one order card with funnel status and visit chain. Use for attribution of a specific deal."
     },
     "roistat_list_order_statuses": {
       "inputSchema": {
@@ -307,7 +323,7 @@
         "additionalProperties": true,
         "type": "object"
       },
-      "description": "List CRM funnel statuses mapped in the Roistat project."
+      "description": "List CRM funnel statuses mapped in the project. Use before status updates or funnel analysis."
     },
     "roistat_list_leads": {
       "inputSchema": {
@@ -338,7 +354,7 @@
         "additionalProperties": true,
         "type": "object"
       },
-      "description": "List proxy leads for a bounded YYYY-MM-DD-YYYY-MM-DD period. PII is redacted."
+      "description": "List proxy leads (forms/requests) for a period; PII redacted. Use for lead audits; duplicates via `roistat_list_lead_duplicates`."
     },
     "roistat_get_lead": {
       "inputSchema": {
@@ -361,7 +377,7 @@
         "additionalProperties": true,
         "type": "object"
       },
-      "description": "Read one proxy lead by Roistat id. Phone and email are redacted."
+      "description": "Read one proxy lead by id; phone/email redacted."
     },
     "roistat_list_lead_duplicates": {
       "inputSchema": {
@@ -392,7 +408,7 @@
         "additionalProperties": true,
         "type": "object"
       },
-      "description": "List duplicate proxy leads for a bounded period."
+      "description": "List duplicate proxy leads for a period. Use in lead-quality audits."
     },
     "roistat_list_calls": {
       "inputSchema": {
@@ -435,7 +451,7 @@
         "additionalProperties": true,
         "type": "object"
       },
-      "description": "List calltracking history. Caller and callee numbers are redacted."
+      "description": "List calltracking calls; numbers redacted. Use for call attribution; totals via `roistat_calltracking_summary`."
     },
     "roistat_calltracking_summary": {
       "inputSchema": {
@@ -466,7 +482,7 @@
         "additionalProperties": true,
         "type": "object"
       },
-      "description": "Read the official calltracking dashboard summary for one period."
+      "description": "Read the calltracking dashboard summary for a period. Use for call volume/quality KPIs."
     },
     "roistat_list_visits": {
       "inputSchema": {
@@ -509,7 +525,7 @@
         "additionalProperties": true,
         "type": "object"
       },
-      "description": "List site visits. Visitor IPs are redacted."
+      "description": "List site visits with source markers; IPs redacted. Use to check tagging (UTM) gaps."
     },
     "roistat_list_clients": {
       "inputSchema": {
@@ -552,7 +568,7 @@
         "additionalProperties": true,
         "type": "object"
       },
-      "description": "List CRM clients with phone and email redacted."
+      "description": "List CRM clients; phone/email redacted."
     },
     "roistat_funnel": {
       "inputSchema": {
@@ -584,7 +600,7 @@
         "additionalProperties": true,
         "type": "object"
       },
-      "description": "Read the official status-funnel report for one project."
+      "description": "Read the status-funnel report. Use for lead→sale conversion by stage; statuses via `roistat_list_order_statuses`."
     },
     "roistat_prepare_write": {
       "inputSchema": {
@@ -612,7 +628,7 @@
         "additionalProperties": true,
         "type": "object"
       },
-      "description": "Draft a single-object Roistat write and open an unaccepted approval."
+      "description": "Draft one allowlisted write (order status, order/client import, delete order) and open an unaccepted approval. Writes: nothing is sent; operator must accept."
     },
     "roistat_apply_write": {
       "inputSchema": {
@@ -648,7 +664,7 @@
         "additionalProperties": true,
         "type": "object"
       },
-      "description": "Execute one accepted, allowlisted single-object Roistat write with readback."
+      "description": "Execute one accepted write with readback. Use only after the operator accepted the approval from `roistat_prepare_write`. Writes: changes Roistat data."
     }
   }
 }
