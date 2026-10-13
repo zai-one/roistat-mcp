@@ -43,7 +43,7 @@ DESCRIPTIONS = {
     "`roistat_list_channel_costs`.",
     "roistat_list_channel_costs": "List manually entered channel costs (optional source prefix). Use to "
     "audit manual budgets.",
-    "roistat_funnel": "Read the status-funnel report. Use for lead→sale conversion by stage; statuses via "
+    "roistat_funnel": "Read the status-funnel report. Use for lead-to-sale conversion by stage; statuses via "
     "`roistat_list_order_statuses`.",
     "roistat_list_orders": "List CRM orders (bounded pages; empty = unknown). Use for deal lists; one card "
     "via `roistat_get_order`.",

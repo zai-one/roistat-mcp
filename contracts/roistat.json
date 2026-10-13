@@ -600,7 +600,7 @@
         "additionalProperties": true,
         "type": "object"
       },
-      "description": "Read the status-funnel report. Use for lead→sale conversion by stage; statuses via `roistat_list_order_statuses`."
+      "description": "Read the status-funnel report. Use for lead-to-sale conversion by stage; statuses via `roistat_list_order_statuses`."
     },
     "roistat_prepare_write": {
       "inputSchema": {
