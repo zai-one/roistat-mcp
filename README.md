@@ -4,6 +4,8 @@
 
 **Ask what changed between ad spend and sales.**
 
+> MCP server for Roistat end-to-end analytics: channels, ROI/CPL/CPO, period comparison, leads, orders, calls and visits for allowlisted projects, with PII masking.
+
 Compare periods, follow a change in lead volume and inspect the orders or calls behind a report. Roistat MCP gives your assistant access to analytics and CRM-linked data from the projects you allow, while masking phone numbers, email addresses and visitor IPs in supported responses.
 
 [Quick start](#quick-start) · [Connect your assistant](#connect-your-assistant) · [Issues](https://github.com/zai-one/roistat-mcp/issues)
@@ -21,6 +23,20 @@ Try asking your assistant:
 | Check the underlying activity | Calltracking, visits, clients and duplicate-lead reports, with supported personal fields masked. |
 | Check setup and spend inputs | Official project-state indicators (CRM sync, counter, analytics rebuild), advertising channels, manually entered channel costs and CRM managers (read-only). |
 | Share a traceable report | [Analytics bundles](docs/ANALYTICS_BUNDLE.md): one or two periods, provider totals, attribution, exact request parameters and JSON/CSV. Missing values stay distinct from zero. |
+
+## Why this MCP
+
+- Project allowlist; phone numbers, emails and visitor IPs are masked in supported responses.
+- Writes need `roistat_prepare_write` → operator approval → `roistat_apply_write`; `ROISTAT_READ_ONLY=1` removes them.
+- Analytics bundles with exact request parameters and JSON/CSV; missing values stay distinct from zero; Markdown tables for compact replies.
+- Other Roistat MCP servers on GitHub ([NatrixAi/roistat-mcp](https://github.com/NatrixAi/roistat-mcp), 16 tools; [theYahia/roistat-mcp](https://github.com/theYahia/roistat-mcp), 6 tools) do not mask personal data.
+
+## Maintained and up to date
+
+- Actively maintained by ZAI.ONE: current version 0.4.0; release notes in [CHANGELOG.md](CHANGELOG.md) and [Releases](https://github.com/zai-one/roistat-mcp/releases).
+- Built-in update check: ask the assistant to run `roistat_check_update` (public GitHub API, no credentials, cached; nothing is installed automatically; `ROISTAT_DISABLE_UPDATE_CHECK=1` turns it off).
+- Follows current MCP practice: tool annotations (read-only / destructive hints), toolsets and read-only mode, server `instructions`, prompts and resources, structured errors with recovery hints, secrets kept out of tool output, a token budget for tool descriptions enforced in tests.
+- CI runs the test suite on Linux and Windows for every pull request.
 
 ## Quick start
 
@@ -187,9 +203,9 @@ asking again. At startup the server refreshes this cache in the background by ca
 
 [ZAI.ONE](https://zai.one) is a digital agency working on websites, SEO, advertising and analytics. We also build tools that connect AI assistants to everyday work. [Talk to us on Telegram](https://t.me/zai_one) about setup, automation or an integration for your team.
 
-## Use and feedback
+## License, use and contributing
 
-You may install and use this project for your own accounts under [LicenseRef-ZAI-ONE](LICENSE).
-This is not an open-source license. Third-party notices remain in [NOTICE](NOTICE).
-If it helps, give the repository a ⭐. Missing something or found a bug? [Open an issue](https://github.com/zai-one/roistat-mcp/issues/new/choose).
-I'm working on this project; accepted improvements are implemented here. Support is not guaranteed.
+- **Use:** you may install and use this MCP server freely for yourself and your organisation, including commercial work. If it helps, please consider giving the repository a ⭐ — appreciated, never required.
+- **Contribute:** [issues](https://github.com/zai-one/roistat-mcp/issues/new/choose) and pull requests are welcome; see [CONTRIBUTING.md](CONTRIBUTING.md). Never post tokens, cookies, sessions or account data.
+- **Not allowed without written permission from ZAI.ONE:** copying code into other projects, forking for redistribution, embedding the server in other products or offering it as a competing service.
+- License: [LicenseRef-ZAI-ONE 2.0](LICENSE) (source-available, not open source). Third-party notices and license history: [NOTICE](NOTICE).
