@@ -96,8 +96,12 @@ Readback is the official method used to confirm state after a write. `n/a` means
 | Script list | `POST /project/calltracking/script/list` | none | read | low | n/a | `verified_rest_read` | not in v1 (redirect/PII) |
 | Phone list | `POST /project/calltracking/phone/list` | none | read | low | n/a | `verified_rest_read` | not in v1 (phone numbers) |
 | Prefix list | `POST /project/calltracking/phone/prefix/list` | none | read | low | n/a | `verified_rest_read` | not in v1 |
-| Script create/update | `POST .../script/create`, `.../script/update` | rejected | write | medium | script list | `verified_rest_write` | closed in v1 |
-| Script delete | `POST .../script/delete` | rejected | write | high | script list | `verified_rest_write` | closed |
+| Script create/update | `POST .../script/create`, `.../script/update` | `calltracking_script_create`, `calltracking_script_update` | write | medium | script list | `verified_rest_write` | gated; approval |
+| Script delete | `POST .../script/delete` | `calltracking_script_delete` | write | high | script list | `verified_rest_write` | gated; approval + confirm_delete |
+| External phone add/attach | `POST .../phone/create`, `.../phone/update` | `calltracking_phone_create`, `calltracking_phone_update` | write | medium | phone list | `verified_rest_write` | gated; approval |
+| Phone disconnect | `POST .../phone/delete` | `calltracking_phone_delete` | write | high | phone list | `verified_rest_write` | gated; single id + confirm_delete |
+| Send event(s) | `POST /project/events/send`, `/project/events/bulk/send` | `events_send`, `events_bulk_send` | write | low/medium | events history | `verified_rest_write` | gated; approval |
+| Add event definitions | `POST /project/events/add` | `events_add` | write | medium | events settings | `verified_rest_write` | gated; approval |
 | Call update | `POST .../call/update` | rejected | write | medium | call list | `verified_rest_write` | closed |
 | Create call record | `POST /project/phone-call` | rejected | write | medium | call list | `verified_rest_write` | closed |
 | Delete call | `POST .../call/delete` | rejected | write | high | call list | `verified_rest_write` | closed |

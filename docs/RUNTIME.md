@@ -50,8 +50,10 @@ have not been refreshed as part of this local extraction.
 
 Writes default to disabled. Enable `ROISTAT_WRITE_ENABLED=true` and configure
 `ROISTAT_PROJECT_ALLOWLIST` before writing. `ROISTAT_WRITE_OPERATIONS` can restrict
-the original four operations: update_order_status, import_order, import_client
-and delete_order. Each acts on one object; delete also requires confirm_delete.
+operations: update_order_status, import_order, import_client, delete_order,
+calltracking_script_create/update/delete, calltracking_phone_create/update/delete,
+events_send, events_bulk_send and events_add. Deletes act on one object and require
+confirm_delete. Phone purchase is not in the public API and stays unsupported.
 Batch delete and advertising-platform or CRM-integration creation/deletion remain denied.
 
 The write workflow is:

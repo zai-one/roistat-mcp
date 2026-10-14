@@ -160,8 +160,6 @@ UNSUPPORTED_WRITES = frozenset(
         "delete_orders_batch",
         "buy_phone",
         "create_project",
-        "create_calltracking_script",
-        "delete_calltracking_script",
         "delete_call",
     }
 )
@@ -239,7 +237,38 @@ WRITE_ALLOWLIST: dict[str, _WriteSpec] = {
         "POST",
         ("project", "integration", "order", "{order_id}", "delete"),
     ),
+    # Calltracking writes and events, per help-en.roistat.com/API/methods/{calltracking,events}/.
+    "calltracking_script_create": _WriteSpec(
+        "medium", "POST", ("project", "calltracking", "script", "create")
+    ),
+    "calltracking_script_update": _WriteSpec(
+        "medium", "POST", ("project", "calltracking", "script", "update")
+    ),
+    "calltracking_script_delete": _WriteSpec("high", "POST", ("project", "calltracking", "script", "delete")),
+    "calltracking_phone_create": _WriteSpec("medium", "POST", ("project", "calltracking", "phone", "create")),
+    "calltracking_phone_update": _WriteSpec("medium", "POST", ("project", "calltracking", "phone", "update")),
+    "calltracking_phone_delete": _WriteSpec("high", "POST", ("project", "calltracking", "phone", "delete")),
+    "events_send": _WriteSpec("low", "POST", ("project", "events", "send")),
+    "events_bulk_send": _WriteSpec("medium", "POST", ("project", "events", "bulk", "send"), array_body=True),
+    "events_add": _WriteSpec("medium", "POST", ("project", "events", "add"), array_body=True),
 }
+
+_SCRIPT_KEYS = ("name", "is_enabled", "creation_date", "options", "integration")
+_PHONE = re.compile(r"^\d{11,15}$")
+
+
+def _event_body(item: Mapping[str, Any]) -> dict[str, Any]:
+    name = item.get("name")
+    if not isinstance(name, str) or not name.strip() or len(name) > 255:
+        raise ProviderError("Roistat event requires a name configured in Roistat")
+    body: dict[str, Any] = {"name": name.strip()}
+    if item.get("visit") is not None:
+        body["visit"] = str(item["visit"]).strip()[:64]
+    if item.get("data") is not None:
+        if not isinstance(item["data"], Mapping) or len(item["data"]) > 50:
+            raise ProviderError("Roistat event data must be an object with <=50 keys")
+        body["data"] = dict(item["data"])
+    return body
 
 
 class JsonRequester(Protocol):
@@ -319,6 +348,13 @@ def _non_negative_int(value: object, field: str, maximum: int) -> int:
     if normalized < 0 or normalized > maximum:
         raise ValueError(f"{field} must be between 0 and {maximum}")
     return normalized
+
+
+def _int_id(value: object, field: str) -> int:
+    text = _object_id(value, field)
+    if not text.isdigit():
+        raise ValueError(f"{field} must be a numeric Roistat id")
+    return int(text)
 
 
 def _object_id(value: object, field: str) -> str:
@@ -1677,6 +1713,16 @@ class RoistatAdapter:
                 "body": [body],
                 "object_id": body["id"],
             }
+        if name.startswith(("calltracking_", "events_")):
+            body, object_id = self._validate_calltracking_or_event(name, values)
+            return {
+                "operation": name,
+                "project_id": project,
+                "risk_tier": spec.risk,
+                "path_ids": {},
+                "body": body,
+                "object_id": object_id,
+            }
         raw_client = values.get("client")
         client: Mapping[str, Any] = raw_client if isinstance(raw_client, Mapping) else values
         if any(key in values for key in ("clients", "items")):
@@ -1698,6 +1744,67 @@ class RoistatAdapter:
             "body": [body],
             "object_id": client_id,
         }
+
+    @staticmethod
+    def _validate_calltracking_or_event(name: str, values: dict[str, Any]) -> tuple[Any, str]:
+        if name.endswith("_delete") and values.get("confirm_delete") is not True:
+            raise ProviderError(f"Roistat {name} requires confirm_delete=true")
+        if name == "calltracking_script_create":
+            options = values.get("options")
+            needed = ("css_selector", "redirect", "replaceable_numbers")
+            if not isinstance(options, Mapping) or any(k not in options for k in needed):
+                raise ProviderError("Roistat script options need css_selector, redirect, replaceable_numbers")
+            if options.get("calltracking_type", "dynamic") not in {"dynamic", "static"}:
+                raise ProviderError("Roistat calltracking_type must be dynamic or static")
+            if not isinstance(values.get("name"), str) or not values["name"].strip():
+                raise ProviderError("Roistat script requires a name")
+            return {k: values[k] for k in _SCRIPT_KEYS if k in values}, str(values["name"]).strip()
+        if name == "calltracking_script_update":
+            script_id = _object_id(values.get("id"), "id")
+            body = {"id": _int_id(script_id, "id"), **{k: values[k] for k in _SCRIPT_KEYS if k in values}}
+            if len(body) == 1:
+                raise ProviderError("Roistat script update needs at least one field")
+            return body, script_id
+        if name == "calltracking_script_delete":
+            script_id = _object_id(values.get("id"), "id")
+            return {"id": _int_id(script_id, "id")}, script_id
+        if name == "calltracking_phone_create":
+            phones = values.get("phones")
+            if not isinstance(phones, list) or not 1 <= len(phones) <= 20:
+                raise ProviderError("Roistat phone/create needs 1-20 phones")
+            clean = [str(p).strip().lstrip("+") for p in phones]
+            if not all(_PHONE.match(p) for p in clean):
+                raise ProviderError("Roistat phones must be digits in international format")
+            return {"phones": clean}, f"{len(clean)} phones"
+        if name == "calltracking_phone_update":
+            phone_id = _object_id(values.get("id"), "id")
+            body = {"id": _int_id(phone_id, "id"), "script_id": _int_id(values.get("script_id"), "script_id")}
+            if values.get("last_use_date") is not None:
+                body["last_use_date"] = str(values["last_use_date"]).strip()
+            return body, phone_id
+        if name == "calltracking_phone_delete":
+            if any(key in values for key in ("phones", "ids")):
+                raise ProviderError("Roistat phone delete is single-object only")
+            phone_id = _object_id(values.get("id"), "id")
+            return {"phones": [_int_id(phone_id, "id")]}, phone_id
+        if name == "events_send":
+            body = _event_body(values.get("event") if isinstance(values.get("event"), Mapping) else values)
+            return body, body["name"]
+        items = values.get("events")
+        if not isinstance(items, list) or not 1 <= len(items) <= 100:
+            raise ProviderError(f"Roistat {name} needs 1-100 events")
+        if name == "events_bulk_send":
+            return [_event_body(item) for item in items], f"{len(items)} events"
+        out = []
+        for item in items:
+            if not isinstance(item, Mapping) or item.get("type") not in {"js", "url"}:
+                raise ProviderError("Roistat events/add items need type js or url")
+            display = str(item.get("display_name") or "").strip()
+            parameter = str(item.get("parameter") or "").strip()
+            if not display or not parameter or len(display) > 255 or len(parameter) > 2048:
+                raise ProviderError("Roistat events/add items need display_name and parameter")
+            out.append({"display_name": display, "type": item["type"], "parameter": parameter})
+        return out, f"{len(out)} event definitions"
 
     async def apply_write(
         self, operation: str, project_id: object, payload: dict[str, Any] | None = None
