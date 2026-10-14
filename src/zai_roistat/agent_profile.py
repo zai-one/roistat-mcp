@@ -13,7 +13,8 @@ ROUTES = (
           "roistat-lead-audit", "dimensions"),
     Route("calls", "звонки, коллтрекинг, calls, номера, сценарии", "roistat_list_calls", "", "tool-map"),
     Route("visits", "визиты, посетители, клиенты, события, visits", "roistat_list_visits", "", "tool-map"),
-    Route("write", "статус заказа, импорт, удалить, delete, write", "roistat_prepare_write",
+    Route("write", "статус заказа, импорт, удалить, отправить событие, сценарий коллтрекинга, delete, write",
+          "roistat_prepare_write",
           "roistat-write-safe", "errors"),
     Route("health", "проекты, проверка, интеграция, ошибка, лимит, health, error", "roistat_health", "",
           "errors"),
@@ -77,8 +78,8 @@ DESCRIPTIONS = {
     "`roistat_calltracking_summary`.",
     "roistat_calltracking_summary": "Read the calltracking dashboard summary for a period. Use for call "
     "volume/quality KPIs.",
-    "roistat_prepare_write": "Draft one allowlisted write (order status, order/client import, delete order) "
-    "and open an unaccepted approval. Writes: nothing is sent; operator must accept.",
+    "roistat_prepare_write": "Draft one allowlisted write (orders, clients, calltracking scripts/phones, "
+    "events) and open an unaccepted approval. Writes: nothing is sent; operator must accept.",
     "roistat_apply_write": "Execute one accepted write with readback. Use only after the operator accepted "
     "the approval from `roistat_prepare_write`. Writes: changes Roistat data.",
     "roistat_check_update": "Check for a newer server release; never installs. Cost: free, 24h cache.",

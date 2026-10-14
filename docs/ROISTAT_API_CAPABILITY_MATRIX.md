@@ -85,7 +85,7 @@ Readback is the official method used to confirm state after a write. `n/a` means
 | Lead duplicates | `GET /project/proxy-leads/duplicates` | `roistat_list_lead_duplicates` | read | low | n/a | `verified_rest_read` | enabled |
 | One lead | `GET /project/proxy-leads/{proxyLeadId}` | `roistat_get_lead` | read | low | n/a | `verified_rest_read` + `official_mcp_read` | enabled |
 | Clients list | `POST /project/clients` | `roistat_list_clients` | read | low | n/a | `verified_rest_read` | enabled; PII redacted |
-| Client feed | `GET /project/clients/detail/feed` | none | read | low | n/a | `verified_rest_read` | not in v1 |
+| Client feed | `GET /project/clients/detail/feed` | none | read | low | n/a | `verified_rest_read` | `roistat_extra_read` (opt-in `extras`) |
 | Import client | `POST /project/clients/import` | `import_client` | write | medium | clients list | `verified_rest_write` | gated; single object |
 | Visits | `POST /project/site/visit/list` | `roistat_list_visits` | read | low | n/a | `verified_rest_read` | enabled; IP redacted |
 | Visit param update | `POST /project/site/visit/params/update` | rejected | write | medium | visit list | `verified_rest_write` | closed |
@@ -93,8 +93,8 @@ Readback is the official method used to confirm state after a write. `n/a` means
 | Call dashboard | `POST /project/calltracking/data` | `roistat_calltracking_summary` | read | low | n/a | `verified_rest_read` | enabled |
 | Call XLS export | `POST /project/calltracking/call/xls/export` | none | read | low | n/a | `verified_rest_read` | closed (binary) |
 | Call audio | `POST /project/calltracking/call/{id}/file` | none | read | low | n/a | `verified_rest_read` | closed (binary) |
-| Script list | `POST /project/calltracking/script/list` | none | read | low | n/a | `verified_rest_read` | not in v1 (redirect/PII) |
-| Phone list | `POST /project/calltracking/phone/list` | none | read | low | n/a | `verified_rest_read` | not in v1 (phone numbers) |
+| Script list | `POST /project/calltracking/script/list` | none | read | low | n/a | `verified_rest_read` | `roistat_extra_read` (opt-in `extras`, PII redacted) |
+| Phone list | `POST /project/calltracking/phone/list` | none | read | low | n/a | `verified_rest_read` | `roistat_extra_read` (opt-in `extras`, numbers redacted) |
 | Prefix list | `POST /project/calltracking/phone/prefix/list` | none | read | low | n/a | `verified_rest_read` | not in v1 |
 | Script create/update | `POST .../script/create`, `.../script/update` | `calltracking_script_create`, `calltracking_script_update` | write | medium | script list | `verified_rest_write` | gated; approval |
 | Script delete | `POST .../script/delete` | `calltracking_script_delete` | write | high | script list | `verified_rest_write` | gated; approval + confirm_delete |

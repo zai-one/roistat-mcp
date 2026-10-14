@@ -150,11 +150,11 @@ and open the other files on demand. Clients without skills get the same flows as
 |---|---|
 | `roistat-channel-roi` | ROI, CPL, CPO and revenue by channel with period comparison. |
 | `roistat-lead-audit` | Duplicates, untagged leads, unattributed calls, orders without visit chain. |
-| `roistat-write-safe` | Order status/import/delete via prepare, operator acceptance and apply with readback. |
+| `roistat-write-safe` | Order status/import/delete, calltracking scripts/phones, events via prepare, operator acceptance and apply with readback. |
 
 ## Toolsets and read-only mode
 
-`ROISTAT_TOOLSETS=all` (default) or a comma list (see `roistat://toolsets`); `ROISTAT_TOOLS=a,b` adds single tools,
+Default: `meta`, `analytics`, `orders_visits`, `calls`, `settings_write`. Opt-in `extras` (`roistat_extra_read`: calltracking scripts and phone pool, events log, one client's activity feed; PII redacted). `ROISTAT_TOOLSETS=default` (when unset), `all`, or a comma list (see `roistat://toolsets`); `ROISTAT_TOOLS=a,b` adds single tools,
 `ROISTAT_DISABLED_TOOLS=a,b` removes them, `ROISTAT_READ_ONLY=1` removes every write/paid tool.
 
 ## Example requests

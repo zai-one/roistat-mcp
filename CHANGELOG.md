@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased — extras toolset, calltracking/events writes, router eval
+
+- Opt-in toolset `extras` (not in default; default tool list and token budget unchanged): `roistat_extra_read` reads calltracking scripts, the phone pool, the events log (filters) and one client's activity feed (`GET /project/clients/detail/feed?client=`); PII redacted.
+- `roistat_prepare_write` / `roistat_apply_write` add documented calltracking script create/update/delete, phone create/update/delete and events send/bulk send/add; deletes act on one object and need `confirm_delete`; same operator acceptance. Script create/delete were previously listed as unsupported by mistake. Phone purchase is not in the public API.
+- Default toolsets no longer mean "all": unset `ROISTAT_TOOLSETS` = `default` (everything except opt-in `extras`).
+- Router generated from intents (tool; skill; `roistat://guide/<topic>`), fallbacks `roistat://playbook` and `roistat://guide/tool-map`.
+- `tests/test_routing_eval.py` + `tests/evals/routing_cases.json` (24 RU/EN requests incl. paraphrases and negative cases).
+
 ## 0.5.0
 
 - License: LicenseRef-ZAI-ONE 2.0 (source-available). Free install and use for yourself and your organisation, including commercial work; issues and pull requests welcome; copying code into other projects, redistribution, embedding and competing hosted services need written permission. Earlier releases keep their LicenseRef-ZAI-ONE 1.0 terms (see NOTICE). README first screen: one-line scope, why this MCP, maintenance and update check.
