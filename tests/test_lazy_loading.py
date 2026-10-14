@@ -90,7 +90,8 @@ async def test_enable_registers_tools_and_notifies(tmp_path, monkeypatch):
     assert expected and set(result["added_tools"]) == expected
     assert names == core(eager) | expected
     assert notices.seen == ["tools/list_changed"]
-    assert "reconnect" in result["hint"] and f"{ENV}_TOOL_LOADING=eager" in result["hint"]
+    # Enablement is per session: reconnecting drops it, so the hint must not offer it as the fix.
+    assert "reconnect the" not in result["hint"].lower() and f"{ENV}_TOOL_LOADING=eager" in result["hint"]
 
 
 async def test_enable_is_idempotent(tmp_path, monkeypatch):

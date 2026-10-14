@@ -426,14 +426,30 @@ def _bounded_period(period: Mapping[str, Any], *, max_days: int) -> dict[str, st
     }
 
 
+# Schema-specific fields whose generic names ("value", "name", "field") carry secrets or PII:
+# calltracking options.redirect.value is a phone, an external SIP account or a Roistat SIP
+# password (help-en.roistat.com/API/methods/calltracking/); client-feed lead_hunter_* records
+# keep the visitor's entered phone in "field" and their name in "name" (.../methods/clients/).
+_FORWARDING_KEYS = frozenset({"redirect"})
+_LEAD_HUNTER_CONTACT_KEYS = frozenset({"name", "field"})
+
+
 def _redact_pii(value: Any) -> Any:
     if isinstance(value, Mapping):
         redacted: dict[str, Any] = {}
+        record_type = value.get("type")
+        lead_hunter = isinstance(record_type, str) and record_type.startswith("lead_hunter")
         for raw_key, child in value.items():
             key = str(raw_key)
             marker = "".join(character for character in key.lower() if character.isalnum())
-            if marker in PII_KEYS or any(part == marker for part in PII_KEYS):
+            contact = lead_hunter and marker in _LEAD_HUNTER_CONTACT_KEYS and child is not None
+            if marker in PII_KEYS or any(part == marker for part in PII_KEYS) or contact:
                 redacted[key] = REDACTED
+            elif marker in _FORWARDING_KEYS and isinstance(child, Mapping):
+                forwarding = _redact_pii(child)
+                if forwarding.get("value") is not None:
+                    forwarding["value"] = REDACTED
+                redacted[key] = forwarding
             else:
                 redacted[key] = _redact_pii(child)
         return redacted
@@ -454,6 +470,27 @@ def _items_of(response: Mapping[str, Any], *keys: str) -> list[Any]:
             if key == "data" and any(item in value for item in ("id", "items")):
                 return [value]
     return []
+
+
+def _full_collection(response: Mapping[str, Any], *keys: str) -> tuple[list[Any] | None, bool]:
+    """Return the listed collection and whether it provably covers every object.
+
+    None means the response carries no collection at all. Coverage holds only when a list is
+    present and a reported total (if any) is a readable count not above the returned rows.
+    """
+    for key in keys:
+        value = response.get(key)
+        if isinstance(value, Mapping):
+            value = value.get("items")
+        if not isinstance(value, list):
+            continue
+        total = response.get("total")
+        if total is None:
+            return value, True
+        if isinstance(total, bool) or not isinstance(total, int | str) or not str(total).isdigit():
+            return value, False
+        return value, int(total) <= len(value)
+    return None, False
 
 
 def _completeness(items: Sequence[Any] | None, total: object | None, *, limit: int | None) -> str:
@@ -1874,32 +1911,46 @@ class RoistatAdapter:
     async def _calltracking_readback(
         self, name: str, project_id: object, object_id: object
     ) -> dict[str, Any]:
-        """Best-effort readback after an applied calltracking write; never turns success into an error."""
+        """Readback after an applied calltracking write; never turns success into an error.
+
+        Deletion is reported only from a listing that provably covers every object: an empty,
+        malformed or partial response leaves ``deleted`` unknown (None) and ``verified`` false.
+        Rate limits propagate so the runtime records the provider cooldown.
+        """
         kind = "calltracking_scripts" if "_script_" in name else "calltracking_phones"
+        delete = name.endswith("_delete")
+        unverified: dict[str, Any] = {"verified": False, "object_id": str(object_id)}
+        if delete:
+            unverified["deleted"] = None
         if name == "calltracking_phone_create":
             # Phone numbers are redacted in reads, so new numbers cannot be matched.
-            return {"verified": False, "object_id": str(object_id), "reason": "phone numbers are redacted"}
+            return {**unverified, "reason": "phone numbers are redacted"}
         try:
-            listing = await self.extra_read(kind, project_id, limit=MAX_CATALOG_ROWS)
+            project = self.authorize_project(project_id)
+            response = await self._call(kind, project_id=project)
+        except ProviderRateLimited:
+            raise
         except ProviderError:
-            return {"verified": False, "object_id": str(object_id), "reason": "readback read failed"}
+            return {**unverified, "reason": "readback read failed"}
+        items, complete = _full_collection(response, "data", "items", "scripts", "phones")
+        if items is None:
+            return {**unverified, "reason": "readback response has no listing"}
         field = "name" if name == "calltracking_script_create" else "id"
         matches = [
             item
-            for item in listing["items"]
+            for item in _redact_pii(items)
             if isinstance(item, Mapping) and str(item.get(field)) == str(object_id)
         ]
-        found = bool(matches)
-        if name.endswith("_delete"):
-            deleted = not found or all(item.get("is_deleted") in (1, True, "1") for item in matches)
-            return {
-                "verified": found or not listing["truncated"],
-                "deleted": deleted,
-                "object_id": str(object_id),
-            }
+        if delete:
+            if matches:
+                deleted = all(item.get("is_deleted") in (1, True, "1") for item in matches)
+                return {"verified": True, "deleted": deleted, "object_id": str(object_id)}
+            if not complete:
+                return {**unverified, "reason": "listing is partial; absence does not prove deletion"}
+            return {"verified": True, "deleted": True, "object_id": str(object_id)}
         return {
-            "verified": found,
+            "verified": bool(matches),
             "object_id": str(object_id),
             "item": matches[0] if matches else None,
-            "completeness": listing["completeness"],
+            "completeness": "complete" if complete else "partial",
         }

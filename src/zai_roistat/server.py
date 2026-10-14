@@ -257,7 +257,19 @@ class Runtime:
             # A timeout, failure or cancellation leaves pending durable state.
             # No blind retry of a possibly applied write, including after restart.
             result = await apply_fn()
-            readback = await readback_fn(result) if readback_fn else None
+            readback = None
+            if readback_fn:
+                try:
+                    readback = await readback_fn(result)
+                except ProviderRateLimited as exc:
+                    # The write is applied: keep its result, leave readback unverified and
+                    # still record the provider's Retry-After as the durable cooldown.
+                    self._cooldown(exc)
+                    readback = {
+                        "verified": False,
+                        "reason": "readback rate limited",
+                        "retry_after_seconds": exc.retry_after_seconds,
+                    }
             payload = self.clean(
                 {
                     "applied": True,

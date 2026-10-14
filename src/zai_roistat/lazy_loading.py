@@ -45,8 +45,9 @@ def router_line(profile: Any) -> str:
 
 def fallback_hint(profile: Any) -> str:
     return (
-        "If the new tools do not appear, this client ignores tools/list_changed: reconnect the "
-        f"MCP server, or set {profile.env}_TOOL_LOADING=eager."
+        "If the new tools do not appear, this client ignores tools/list_changed. Reconnecting "
+        "starts a new session without the enabled toolsets, so set "
+        f"{profile.env}_TOOL_LOADING=eager (or list them in {profile.env}_TOOLSETS) and restart."
     )
 
 
