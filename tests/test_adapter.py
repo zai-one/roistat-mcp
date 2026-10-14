@@ -343,7 +343,15 @@ async def test_write_gating_rejects_platforms_batch_delete_and_disabled_ops() ->
 @pytest.mark.asyncio
 async def test_calltracking_and_event_writes_follow_roistat_docs() -> None:
     http = RecordingHttp({"status": "success"})
-    adapter = _adapter(http)
+    assert _adapter(http).write_operations == {
+        "update_order_status",
+        "import_order",
+        "import_client",
+        "delete_order",
+    }  # new operations stay off until named in ROISTAT_WRITE_OPERATIONS
+    with pytest.raises(ProviderError, match="not enabled"):
+        _adapter(http).validate_write("events_send", 12345, {"name": "Form"})
+    adapter = _adapter(http, writes=",".join(WRITE_ALLOWLIST))
     script = {
         "name": "Basic",
         "is_enabled": 1,

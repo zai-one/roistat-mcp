@@ -253,6 +253,10 @@ WRITE_ALLOWLIST: dict[str, _WriteSpec] = {
     "events_add": _WriteSpec("medium", "POST", ("project", "events", "add"), array_body=True),
 }
 
+# Without ROISTAT_WRITE_OPERATIONS only the original four writes are enabled; calltracking and
+# events writes must be named there explicitly, so upgrading never widens an operator's surface.
+DEFAULT_WRITE_OPERATIONS = frozenset({"update_order_status", "import_order", "import_client", "delete_order"})
+
 _SCRIPT_KEYS = ("name", "is_enabled", "creation_date", "options", "integration")
 _PHONE = re.compile(r"^\d{11,15}$")
 
@@ -501,7 +505,7 @@ class RoistatAdapter:
         self.project_allowlist = _parse_csv_ids(project_allowlist)
         configured = _parse_csv_ops(write_operations)
         self.write_operations = (
-            frozenset(WRITE_ALLOWLIST) if not configured else frozenset(configured & set(WRITE_ALLOWLIST))
+            DEFAULT_WRITE_OPERATIONS if not configured else frozenset(configured & set(WRITE_ALLOWLIST))
         )
         self.http = http or JsonHttpClient(timeout=timeout)
         self.coalescer = coalescer or AsyncSingleFlight()
@@ -1857,4 +1861,45 @@ class RoistatAdapter:
                 "order": result.get("order"),
                 "completeness": result.get("completeness"),
             }
+        if name.startswith("calltracking_"):
+            return await self._calltracking_readback(name, project_id, object_id)
+        if name.startswith("events_"):
+            return {
+                "verified": False,
+                "object_id": str(object_id),
+                "reason": "Roistat has no per-event readback; inspect roistat_extra_read(kind='events_log')",
+            }
         raise ProviderError("Roistat readback is not defined for this operation")
+
+    async def _calltracking_readback(
+        self, name: str, project_id: object, object_id: object
+    ) -> dict[str, Any]:
+        """Best-effort readback after an applied calltracking write; never turns success into an error."""
+        kind = "calltracking_scripts" if "_script_" in name else "calltracking_phones"
+        if name == "calltracking_phone_create":
+            # Phone numbers are redacted in reads, so new numbers cannot be matched.
+            return {"verified": False, "object_id": str(object_id), "reason": "phone numbers are redacted"}
+        try:
+            listing = await self.extra_read(kind, project_id, limit=MAX_CATALOG_ROWS)
+        except ProviderError:
+            return {"verified": False, "object_id": str(object_id), "reason": "readback read failed"}
+        field = "name" if name == "calltracking_script_create" else "id"
+        matches = [
+            item
+            for item in listing["items"]
+            if isinstance(item, Mapping) and str(item.get(field)) == str(object_id)
+        ]
+        found = bool(matches)
+        if name.endswith("_delete"):
+            deleted = not found or all(item.get("is_deleted") in (1, True, "1") for item in matches)
+            return {
+                "verified": found or not listing["truncated"],
+                "deleted": deleted,
+                "object_id": str(object_id),
+            }
+        return {
+            "verified": found,
+            "object_id": str(object_id),
+            "item": matches[0] if matches else None,
+            "completeness": listing["completeness"],
+        }

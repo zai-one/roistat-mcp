@@ -26,6 +26,7 @@ metadata:
   `calltracking_phone_create` (`phones`: own numbers), `calltracking_phone_update` (`id`, `script_id`),
   `calltracking_phone_delete` (one `id`), `events_send` (`name`, `visit`, `data`),
   `events_bulk_send` / `events_add` (`events`: 1-100 items).
+- Calltracking/events operations work only when the operator lists them in `ROISTAT_WRITE_OPERATIONS`.
 - Every `*_delete` needs `confirm_delete=true` and is destructive: require an explicit second confirmation.
 - `delete_order` is destructive: require an explicit second confirmation.
 - Manual cost upload is not supported by this server yet.

@@ -28,7 +28,7 @@ Try asking your assistant:
 
 - Optional lazy tool loading: set `ROISTAT_TOOL_LOADING=lazy` (or choose it in the setup wizard) to start with a small core and enable toolsets on demand; see [Lazy tool loading](#lazy-tool-loading).
 - Project allowlist; phone numbers, emails and visitor IPs are masked in supported responses.
-- Writes need `roistat_prepare_write` → operator approval → `roistat_apply_write`; `ROISTAT_READ_ONLY=1` removes them.
+- Writes need `roistat_prepare_write` → operator approval → `roistat_apply_write`; `ROISTAT_READ_ONLY=1` removes them. Calltracking and events writes stay off until listed in `ROISTAT_WRITE_OPERATIONS`.
 - Analytics bundles with exact request parameters and JSON/CSV; missing values stay distinct from zero; Markdown tables for compact replies.
 - Other Roistat MCP servers on GitHub ([NatrixAi/roistat-mcp](https://github.com/NatrixAi/roistat-mcp), 16 tools; [theYahia/roistat-mcp](https://github.com/theYahia/roistat-mcp), 6 tools) do not mask personal data.
 
