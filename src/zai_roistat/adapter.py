@@ -216,11 +216,14 @@ READ_SPECS: dict[str, _ReadSpec] = {
     # https://help-ru.roistat.com/API/methods/calltracking/
     "calltracking_scripts": _ReadSpec("POST", ("project", "calltracking", "script", "list")),
     "calltracking_phones": _ReadSpec("POST", ("project", "calltracking", "phone", "list")),
-    # https://help-ru.roistat.com/API/methods/events/
-    "events_log": _ReadSpec("GET", ("project", "events", "log")),
-    # https://help-ru.roistat.com/API/methods/clients/ (client activity feed)
-    "client_feed": _ReadSpec("POST", ("project", "clients", "detail", "feed")),
+    # https://help-ru.roistat.com/API/methods/events/ (heading says GET, the documented curl
+    # sends POST with a JSON body {name, date_from, date_to}; a GET cannot carry those filters)
+    "events_log": _ReadSpec("POST", ("project", "events", "log")),
+    # https://help-ru.roistat.com/API/methods/clients/ (client activity feed):
+    # GET ...?project=<id>&client=<id>, response {"feed": [...]}
+    "client_feed": _ReadSpec("GET", ("project", "clients", "detail", "feed")),
 }
+_ISO_DATE = re.compile(r"\d{4}-\d{2}-\d{2}(?:[T ][0-9:.]+(?:Z|[+-]\d{2}:?\d{2})?)?")
 EXTRA_READS = ("calltracking_scripts", "calltracking_phones", "events_log", "client_feed")
 
 WRITE_ALLOWLIST: dict[str, _WriteSpec] = {
@@ -1470,6 +1473,9 @@ class RoistatAdapter:
         *,
         is_deleted: bool | None = None,
         client_id: str | None = None,
+        event_name: str | None = None,
+        date_from: str | None = None,
+        date_to: str | None = None,
         limit: int = 100,
     ) -> dict[str, Any]:
         """Calltracking scripts/phones, events log, one client's activity feed; PII is redacted."""
@@ -1478,14 +1484,27 @@ class RoistatAdapter:
         project = self.authorize_project(project_id)
         page = _positive_int(limit, "limit", MAX_CATALOG_ROWS)
         payload: dict[str, Any] | None = None
+        params: dict[str, Any] | None = None
         if kind == "calltracking_scripts" and is_deleted is not None:
             payload = {"is_deleted": int(bool(is_deleted))}
+        if kind == "events_log":
+            body: dict[str, Any] = {}
+            if event_name is not None:
+                if not isinstance(event_name, str) or not event_name.strip() or len(event_name) > 256:
+                    raise ValueError("event_name must be a non-empty string up to 256 chars")
+                body["name"] = event_name
+            for key, value in (("date_from", date_from), ("date_to", date_to)):
+                if value is not None:
+                    if not isinstance(value, str) or _ISO_DATE.fullmatch(value) is None:
+                        raise ValueError(f"{key} must be ISO 8601, e.g. 2026-10-01T00:00:00Z")
+                    body[key] = value
+            payload = body or None
         if kind == "client_feed":
             if not isinstance(client_id, str) or _OBJECT_ID.fullmatch(client_id) is None:
                 raise ValueError("client_feed requires client_id")
-            payload = {"client_id": client_id}
-        response = await self._call(kind, project_id=project, payload=payload)
-        items = _items_of(response, "data", "items", "scripts", "phones")
+            params = {"client": client_id}
+        response = await self._call(kind, project_id=project, payload=payload, params=params)
+        items = _items_of(response, "data", "items", "feed", "scripts", "phones")
         return {
             "project_id": project,
             "kind": kind,
