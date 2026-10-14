@@ -150,4 +150,5 @@ PROFILE = Profile(
     prompts=PROMPTS,
     routes=ROUTES,
     optin=OPTIN,
+    lazy_core=("roistat_analytics_report",),
 )

@@ -2,6 +2,7 @@
 
 ## Unreleased — extras toolset, calltracking/events writes, router eval
 
+- Optional lazy tool loading (`ROISTAT_TOOL_LOADING=eager|lazy`, default `eager` = unchanged): lazy lists a small core plus `roistat_enable_toolsets` (toolsets with one-line description and token cost); enabling registers the tools at runtime and sends `notifications/tools/list_changed`. Allowlists, read-only mode and approval gates still apply. Setup wizard asks eager vs lazy. Startup tokens (tools/list + instructions, ≈chars/4): eager ≈5164, lazy ≈1431.
 - Opt-in toolset `extras` (not in default; default tool list and token budget unchanged): `roistat_extra_read` reads calltracking scripts, the phone pool, the events log (filters) and one client's activity feed (`GET /project/clients/detail/feed?client=`); PII redacted.
 - `roistat_prepare_write` / `roistat_apply_write` add documented calltracking script create/update/delete, phone create/update/delete and events send/bulk send/add; deletes act on one object and need `confirm_delete`; same operator acceptance. Script create/delete were previously listed as unsupported by mistake. Phone purchase is not in the public API.
 - Default toolsets no longer mean "all": unset `ROISTAT_TOOLSETS` = `default` (everything except opt-in `extras`).
