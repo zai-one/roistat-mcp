@@ -26,10 +26,25 @@
 
 ## Почему этот MCP
 
+- Ленивая загрузка инструментов (опционально): `ROISTAT_TOOL_LOADING=lazy` (или выбор в мастере настройки) — старт с небольшим ядром, наборы включаются по запросу; см. [Ленивая загрузка инструментов](#ленивая-загрузка-инструментов).
 - Allowlist проектов; телефоны, email и IP посетителей маскируются в поддерживаемых ответах.
 - Запись: `roistat_prepare_write` → одобрение оператора → `roistat_apply_write`; `ROISTAT_READ_ONLY=1` убирает запись.
 - Аналитические пакеты с точными параметрами запроса и JSON/CSV; отсутствие данных не превращается в ноль; Markdown-таблицы для компактных ответов.
 - Другие Roistat MCP на GitHub ([NatrixAi/roistat-mcp](https://github.com/NatrixAi/roistat-mcp), 16 инструментов; [theYahia/roistat-mcp](https://github.com/theYahia/roistat-mcp), 6) не маскируют персональные данные.
+
+## Ленивая загрузка инструментов
+
+Ленивая загрузка инструментов (опционально): `ROISTAT_TOOL_LOADING=lazy` стартует с небольшим ядром и `roistat_enable_toolsets`, остальные наборы включаются по запросу (`tools/list_changed`). Стоимость старта (tools/list + instructions, ≈символы/4): eager ≈5164 токенов, lazy ≈1435 токенов (−72%). По умолчанию `eager` — без изменений; если клиент не поддерживает `tools/list_changed`, оставьте `eager` или переподключитесь после включения. Область: включение действует в пределах MCP-сессии (session visibility FastMCP), включённые одним клиентом наборы не видны другому. HTTP-транспорт здесь stateless (каждый запрос — отдельная сессия), поэтому включение там не сохраняется: для общего HTTP используйте `eager` или `ROISTAT_TOOLSETS`.
+
+Клиенты и `notifications/tools/list_changed` (проверено по официальной документации, changelog или заявлениям мейнтейнеров, 2026-10):
+
+| Клиент | `tools/list_changed` | Источник |
+|---|---|---|
+| Claude Code | Да (интерактивно: tools, prompts, resources; `-p`/Agent SDK: только tools) | [docs: Dynamic tool updates](https://code.claude.com/docs/en/mcp) |
+| VS Code (GitHub Copilot) | Да (dynamic tool discovery); новые инструменты могут стать доступны агенту только со следующего хода | [docs](https://code.visualstudio.com/api/extension-guides/ai/mcp), [#303012](https://github.com/microsoft/vscode/issues/303012) |
+| Gemini CLI | Да (обновляет реестр инструментов) | [PR #14375](https://github.com/google-gemini/gemini-cli/pull/14375), [PR #21050](https://github.com/google-gemini/gemini-cli/pull/21050) |
+| Cursor | Ненадёжно: регрессия в 3.12.x подтверждена командой Cursor; после включения перезапустите Cursor | [forum](https://forum.cursor.com/t/mcp-server-regression-does-not-reload-tools-disconnect-does-nothing-ignores-mcp-json-changes-etc/166216) |
+| Claude Desktop, Windsurf, Codex CLI, Cline, Zed, Continue | Не проверено: официальных данных нет; используйте `eager` или переподключитесь после включения | — |
 
 ## Поддержка и обновления
 
@@ -91,7 +106,7 @@ uv run --frozen roistat-mcp --config mcp.local.json --check-config
 
 ## Управление доступом и ограничения
 
-При сравнении периодов выбирайте одну модель атрибуции. Просмотр пользовательских метрик не делает каждую из них доступной в отчётах: инструмент использует определённый список. Для изменения данных Roistat нужны отдельная настройка и подтверждение.
+При сравнении периодов выбирайте одну модель атрибуции. Просмотр пользовательских метрик не делает каждую из них доступной в отчётах: инструмент использует определённый список. Для изменения данных Roistat нужны отдельная настройка и подтверждение оператора (`ROISTAT_WRITE_ENABLED`, allowlist проектов; заказы, клиенты; сценарии и номера коллтрекинга и события — только если перечислены в `ROISTAT_WRITE_OPERATIONS`). Opt-in набор `extras` (`roistat_extra_read`, включается `ROISTAT_TOOLSETS=all` или `default,extras`) читает сценарии и номера коллтрекинга, журнал событий и ленту клиента с маскированием персональных данных.
 
 Для работы по сети предусмотрен HTTP с проверкой токенов. [Настройка HTTP](INSTALL.md#http), [конфигурация и права](docs/RUNTIME.md), [подключение Python-пакета](INSTALL.md#python-package-and-platform-integration).
 

@@ -535,6 +535,49 @@ def register_tools(server: Any, runtime: Any) -> None:
             validate=lambda: adapter.authorize_project(project_id),
         )
 
+    @server.tool(auth=require_scopes("roistat:read"), annotations=READ_ONLY)
+    async def roistat_extra_read(
+        kind: Literal["calltracking_scripts", "calltracking_phones", "events_log", "client_feed"],
+        project_id: int,
+        is_deleted: bool | None = None,
+        client_id: str | None = None,
+        event_name: str | None = None,
+        date_from: str | None = None,
+        date_to: str | None = None,
+        limit: int = 100,
+    ) -> dict[str, Any]:
+        """Read calltracking scripts or phone pool, the site events log, or one client's activity feed.
+
+        PII (phones, emails, names) is redacted. client_feed needs client_id from roistat_list_clients;
+        events_log takes optional event_name and ISO date_from/date_to.
+        """
+        adapter = registry.roistat()
+        return await _provider_read(
+            "roistat",
+            kind,
+            {
+                "kind": kind,
+                "project_id": project_id,
+                "is_deleted": is_deleted,
+                "client_id": client_id,
+                "event_name": event_name,
+                "date_from": date_from,
+                "date_to": date_to,
+                "limit": limit,
+            },
+            lambda: adapter.extra_read(
+                kind,
+                project_id,
+                is_deleted=is_deleted,
+                client_id=client_id,
+                event_name=event_name,
+                date_from=date_from,
+                date_to=date_to,
+                limit=limit,
+            ),
+            validate=lambda: adapter.authorize_project(project_id),
+        )
+
     @server.tool(auth=require_scopes("roistat:write"), annotations=PREPARE_WRITE)
     async def roistat_prepare_write(
         operation: str, project_id: int, payload: dict[str, Any]

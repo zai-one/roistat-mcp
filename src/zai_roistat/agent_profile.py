@@ -2,21 +2,35 @@
 
 from __future__ import annotations
 
-from zai_roistat.agent_layer import Profile, Prompt
+from zai_roistat.agent_layer import Profile, Prompt, Route, build_router
 
-ROUTER = """Roistat MCP: end-to-end marketing analytics (channels, ROI/CPL/CPO, leads, orders, calls, visits).
-Toolsets: meta, analytics, orders_visits, calls, settings_write (see roistat://toolsets); \
-ROISTAT_READ_ONLY=1 removes writes.
-Start: roistat_list_projects (allowlisted IDs only) -> roistat_analytics_catalog for metric/dimension names.
-Reports: roistat_analytics_report / roistat_analytics_compare (format="markdown_table" for compact output), \
-roistat_analytics_bundle for provider totals + CSV. Dimensions are marker_level_1..5 (channel levels).
-Empty or partial results are not zero: report completeness. PII is redacted by design.
-Writes: roistat_prepare_write -> show the draft -> operator accepts it outside MCP -> roistat_apply_write.
-Playbooks: skills roistat-channel-roi, roistat-lead-audit, roistat-write-safe; or roistat://playbook, \
-roistat://guide/{metrics,dimensions,errors}.
-Errors: retry only when retryable; statistics_daily is capped at 5 requests/hour."""
+ROUTES = (
+    Route("roi", "окупаемость каналов, ROI, CPL, CPO, расходы, выручка, channel", "roistat_analytics_report",
+          "roistat-channel-roi", "metrics"),
+    Route("compare", "сравнить периоды, прошлый месяц, compare, динамика", "roistat_analytics_compare",
+          "roistat-channel-roi", "dimensions"),
+    Route("leads", "заявки, лиды, сделки, заказы, дубли, leads, orders", "roistat_list_orders",
+          "roistat-lead-audit", "dimensions"),
+    Route("calls", "звонки, коллтрекинг, calls, номера, сценарии", "roistat_list_calls", "", "tool-map"),
+    Route("visits", "визиты, посетители, клиенты, события, visits", "roistat_list_visits", "", "tool-map"),
+    Route("write", "статус заказа, импорт, удалить, отправить событие, сценарий коллтрекинга, delete, write",
+          "roistat_prepare_write",
+          "roistat-write-safe", "errors"),
+    Route("health", "проекты, проверка, интеграция, ошибка, лимит, health, error", "roistat_health", "",
+          "errors"),
+)  # fmt: skip
+
+ROUTER = build_router(
+    "roistat",
+    "Roistat MCP: marketing analytics (channels, ROI, leads, orders, calls, visits); roistat://toolsets. "
+    "Start: roistat_list_projects -> roistat_analytics_catalog. Empty/partial != zero; PII redacted.",
+    ROUTES,
+    "Writes: prepare -> operator accepts outside MCP -> apply. statistics_daily: 5 requests/hour.",
+)
 
 DESCRIPTIONS = {
+    "roistat_extra_read": "Read calltracking scripts or phone pool, the events log, or one client's "
+    "activity feed. PII redacted. Cost: free.",
     "roistat_list_projects": "List Roistat projects visible to the key. Use first for project_id. "
     "Cost: free.",
     "roistat_capabilities": "Return the fixed capability matrix (what is readable/writable). Use when unsure "
@@ -64,8 +78,8 @@ DESCRIPTIONS = {
     "`roistat_calltracking_summary`.",
     "roistat_calltracking_summary": "Read the calltracking dashboard summary for a period. Use for call "
     "volume/quality KPIs.",
-    "roistat_prepare_write": "Draft one allowlisted write (order status, order/client import, delete order) "
-    "and open an unaccepted approval. Writes: nothing is sent; operator must accept.",
+    "roistat_prepare_write": "Draft one allowlisted write (orders, clients, calltracking scripts/phones, "
+    "events) and open an unaccepted approval. Writes: nothing is sent; operator must accept.",
     "roistat_apply_write": "Execute one accepted write with readback. Use only after the operator accepted "
     "the approval from `roistat_prepare_write`. Writes: changes Roistat data.",
     "roistat_check_update": "Check for a newer server release; never installs. Cost: free, 24h cache.",
@@ -104,7 +118,9 @@ TOOLSETS = {
     ),
     "calls": ("roistat_list_calls", "roistat_calltracking_summary"),
     "settings_write": ("roistat_prepare_write", "roistat_apply_write"),
+    "extras": ("roistat_extra_read",),
 }
+OPTIN = ("extras",)
 
 PROMPTS = (
     Prompt(
@@ -132,4 +148,7 @@ PROFILE = Profile(
     descriptions=DESCRIPTIONS,
     toolsets=TOOLSETS,
     prompts=PROMPTS,
+    routes=ROUTES,
+    optin=OPTIN,
+    lazy_core=("roistat_analytics_report",),
 )
