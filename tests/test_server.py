@@ -409,3 +409,42 @@ async def test_new_writes_are_off_by_default_and_apply_without_a_readback_error(
     ]
     with sqlite3.connect(settings.state_path) as db:
         assert [row[0] for row in db.execute("SELECT status FROM writes")] == ["applied", "applied"]
+
+
+async def test_readback_rate_limit_records_cooldown_and_keeps_the_applied_write(tmp_path, pair):
+    """Regression: a 429 during readback was swallowed, so Retry-After never reached the cooldown."""
+    from zai_roistat.transport import ProviderRateLimited
+
+    class LimitedReadback(Recorder):
+        def factory(self, store, execution_id, actor):
+            base = super().factory(store, execution_id, actor)
+            owner = self
+
+            class Http(type(base)):
+                async def request(self, method, url, **kwargs):
+                    if url.endswith("/calltracking/script/list"):
+                        owner.calls.append((method, url, kwargs))
+                        raise ProviderRateLimited("provider returned HTTP 429", retry_after_seconds=120)
+                    return await super().request(method, url, **kwargs)
+
+            return Http(store, execution_id, actor)
+
+    recorder = LimitedReadback()
+    payload = {"id": 7, "name": "B"}
+    write = {"operation": "calltracking_script_update", "project_id": 12345, "payload": payload}
+    settings = config(tmp_path, pair, write_enabled=True, write_operations="calltracking_script_update")
+    async with Client(create_server(settings, transport="stdio", http_factory=recorder.factory)) as client:
+        draft = (await client.call_tool("roistat_prepare_write", write)).data
+        assert approval_store(settings).accept(
+            UUID(draft["approval_id"]), principal="local-operator", request_hash=draft["request_hash"]
+        )
+        args = {**write, "approval_id": draft["approval_id"], "idempotency_key": "limited-readback"}
+        result = (await client.call_tool("roistat_apply_write", args)).data
+    assert result["applied"] and result["readback"]["verified"] is False
+    assert result["readback"]["retry_after_seconds"] == 120
+    with sqlite3.connect(settings.state_path) as db:
+        assert [row[0] for row in db.execute("SELECT status FROM writes")] == ["applied"]
+        (until,) = db.execute("SELECT until_time FROM cooldowns").fetchone()
+    import time
+
+    assert until - time.time() > 100
