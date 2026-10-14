@@ -16,7 +16,7 @@ uv build
 To install the built package elsewhere:
 
 ```sh
-python -m pip install dist/zai_roistat_mcp-0.5.0-py3-none-any.whl
+python -m pip install dist/zai_roistat_mcp-0.6.0-py3-none-any.whl
 python -m zai_roistat --transport stdio
 ```
 
