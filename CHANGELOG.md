@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased — extras toolset, calltracking/events writes, router eval
+## 0.6.0 — extras toolset, calltracking/events writes, router eval
 
 - Optional lazy tool loading (`ROISTAT_TOOL_LOADING=eager|lazy`, default `eager` = unchanged): lazy lists a small core plus `roistat_enable_toolsets` (toolsets with one-line description and token cost); enabling registers the tools at runtime and sends `notifications/tools/list_changed`. Allowlists, read-only mode and approval gates still apply. Setup wizard asks eager vs lazy. Startup tokens (tools/list + instructions, ≈chars/4): eager ≈5164, lazy ≈1435. Scope: enablement is per MCP session (FastMCP session visibility), so one client's enabled toolsets never appear for another. The HTTP transport here is stateless (every request is its own session), so enabled toolsets do not persist there: for shared HTTP use `eager` or `ROISTAT_TOOLSETS`. README lazy section lists verified `tools/list_changed` client support with sources.
 - Opt-in toolset `extras` (not in default; default tool list and token budget unchanged): `roistat_extra_read` reads calltracking scripts, the phone pool, the events log (filters) and one client's activity feed (`GET /project/clients/detail/feed?client=`); PII redacted.
