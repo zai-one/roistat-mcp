@@ -26,7 +26,7 @@ Try asking your assistant:
 
 ## Why this MCP
 
-- Optional lazy tool loading: `ROISTAT_TOOL_LOADING=lazy` starts with a small core plus `roistat_enable_toolsets` and adds toolsets on demand (`tools/list_changed`). Startup cost (tools/list + instructions, ≈chars/4): eager ≈5164 tokens, lazy ≈1431 tokens (−72%). Default `eager` is unchanged; if your client ignores `tools/list_changed`, keep `eager` or reconnect after enabling.
+- Optional lazy tool loading: `ROISTAT_TOOL_LOADING=lazy` starts with a small core plus `roistat_enable_toolsets` and adds toolsets on demand (`tools/list_changed`). Startup cost (tools/list + instructions, ≈chars/4): eager ≈5164 tokens, lazy ≈1435 tokens (−72%). Default `eager` is unchanged; if your client ignores `tools/list_changed`, keep `eager` or reconnect after enabling. Scope: enablement is per MCP session (FastMCP session visibility), so one client's enabled toolsets never appear for another. The HTTP transport here is stateless (every request is its own session), so enabled toolsets do not persist there: for shared HTTP use `eager` or `ROISTAT_TOOLSETS`.
 - Project allowlist; phone numbers, emails and visitor IPs are masked in supported responses.
 - Writes need `roistat_prepare_write` → operator approval → `roistat_apply_write`; `ROISTAT_READ_ONLY=1` removes them.
 - Analytics bundles with exact request parameters and JSON/CSV; missing values stay distinct from zero; Markdown tables for compact replies.
