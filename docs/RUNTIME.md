@@ -16,7 +16,7 @@ uv build
 To install the built package elsewhere:
 
 ```sh
-python -m pip install dist/zai_roistat_mcp-0.5.0-py3-none-any.whl
+python -m pip install dist/zai_roistat_mcp-0.6.0-py3-none-any.whl
 python -m zai_roistat --transport stdio
 ```
 
@@ -49,9 +49,12 @@ preserved in `docs/ROISTAT_API_CAPABILITY_MATRIX.md`; those upstream observation
 have not been refreshed as part of this local extraction.
 
 Writes default to disabled. Enable `ROISTAT_WRITE_ENABLED=true` and configure
-`ROISTAT_PROJECT_ALLOWLIST` before writing. `ROISTAT_WRITE_OPERATIONS` can restrict
-the original four operations: update_order_status, import_order, import_client
-and delete_order. Each acts on one object; delete also requires confirm_delete.
+`ROISTAT_PROJECT_ALLOWLIST` before writing. Unset `ROISTAT_WRITE_OPERATIONS` enables
+only the original four operations: update_order_status, import_order, import_client and
+delete_order. Name the others there explicitly to enable them:
+calltracking_script_create/update/delete, calltracking_phone_create/update/delete,
+events_send, events_bulk_send and events_add. Deletes act on one object and require
+confirm_delete. Phone purchase is not in the public API and stays unsupported.
 Batch delete and advertising-platform or CRM-integration creation/deletion remain denied.
 
 The write workflow is:

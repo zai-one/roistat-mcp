@@ -337,7 +337,63 @@ async def test_write_gating_rejects_platforms_batch_delete_and_disabled_ops() ->
             {"order_id": "1", "confirm_delete": True, "ids": ["1", "2"]},
         )
     assert http.calls == []
-    assert set(WRITE_ALLOWLIST) == {"update_order_status", "import_order", "import_client", "delete_order"}
+    assert {"update_order_status", "import_order", "import_client", "delete_order"} <= set(WRITE_ALLOWLIST)
+
+
+@pytest.mark.asyncio
+async def test_calltracking_and_event_writes_follow_roistat_docs() -> None:
+    http = RecordingHttp({"status": "success"})
+    assert _adapter(http).write_operations == {
+        "update_order_status",
+        "import_order",
+        "import_client",
+        "delete_order",
+    }  # new operations stay off until named in ROISTAT_WRITE_OPERATIONS
+    with pytest.raises(ProviderError, match="not enabled"):
+        _adapter(http).validate_write("events_send", 12345, {"name": "Form"})
+    adapter = _adapter(http, writes=",".join(WRITE_ALLOWLIST))
+    script = {
+        "name": "Basic",
+        "is_enabled": 1,
+        "options": {
+            "calltracking_type": "dynamic",
+            "css_selector": ["#phone"],
+            "redirect": {"type": "phone", "value": "74951234567"},
+            "replaceable_numbers": ["89451111111"],
+        },
+        "secret": "dropped",
+    }
+    checked = adapter.validate_write("calltracking_script_create", 12345, script)
+    assert "secret" not in checked["body"] and checked["body"]["options"]["css_selector"] == ["#phone"]
+    with pytest.raises(ProviderError, match="css_selector"):
+        adapter.validate_write("calltracking_script_create", 12345, {"name": "x", "options": {}})
+    with pytest.raises(ProviderError, match="confirm_delete"):
+        adapter.validate_write("calltracking_script_delete", 12345, {"id": 1})
+    assert adapter.validate_write("calltracking_phone_delete", 12345, {"id": "4", "confirm_delete": True})[
+        "body"
+    ] == {"phones": [4]}
+    with pytest.raises(ProviderError, match="single-object"):
+        adapter.validate_write("calltracking_phone_delete", 12345, {"phones": [4, 5], "confirm_delete": True})
+    with pytest.raises(ProviderError, match="international"):
+        adapter.validate_write("calltracking_phone_create", 12345, {"phones": ["abc"]})
+    assert adapter.validate_write("calltracking_phone_update", 12345, {"id": 6, "script_id": "11"})[
+        "body"
+    ] == {
+        "id": 6,
+        "script_id": 11,
+    }
+    with pytest.raises(ProviderError, match="type js or url"):
+        adapter.validate_write(
+            "events_add", 12345, {"events": [{"display_name": "a", "type": "x", "parameter": "p"}]}
+        )
+    bulk = adapter.validate_write("events_bulk_send", 12345, {"events": [{"name": "Form", "visit": 1}]})
+    assert bulk["body"] == [{"name": "Form", "visit": "1"}]
+    await adapter.apply_write(
+        "events_send", 12345, {"name": "Form", "visit": "100001", "data": {"landing": 1}}
+    )
+    method, url, _headers, payload, params, _ = http.calls[-1]
+    assert (method, url.split("/api/v1/")[1], params) == ("POST", "project/events/send", {"project": "12345"})
+    assert payload == {"name": "Form", "visit": "100001", "data": {"landing": 1}}
 
 
 @pytest.mark.asyncio

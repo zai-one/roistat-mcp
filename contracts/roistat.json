@@ -628,7 +628,7 @@
         "additionalProperties": true,
         "type": "object"
       },
-      "description": "Draft one allowlisted write (order status, order/client import, delete order) and open an unaccepted approval. Writes: nothing is sent; operator must accept."
+      "description": "Draft one allowlisted write (orders, clients, calltracking scripts/phones, events) and open an unaccepted approval. Writes: nothing is sent; operator must accept."
     },
     "roistat_apply_write": {
       "inputSchema": {

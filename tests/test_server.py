@@ -367,3 +367,84 @@ async def test_tool_annotations_match_side_effects(tmp_path, pair):
             assert hints.readOnlyHint is True and hints.destructiveHint is False, name
     assert tools["roistat_apply_write"].annotations.destructiveHint is True
     assert tools["roistat_prepare_write"].annotations.destructiveHint is False
+
+
+async def test_new_writes_are_off_by_default_and_apply_without_a_readback_error(tmp_path, pair):
+    """Regression: calltracking/events writes were enabled for every existing write deployment and,
+    once applied, failed with "readback is not defined", leaving the idempotency record pending."""
+    recorder = Recorder()
+    event = {"operation": "events_send", "project_id": 12345, "payload": {"name": "Form", "visit": "1"}}
+    script_delete = {
+        "operation": "calltracking_script_delete",
+        "project_id": 12345,
+        "payload": {"id": 7, "confirm_delete": True},
+    }
+    legacy = config(tmp_path, pair, write_enabled=True)
+    async with Client(create_server(legacy, transport="stdio", http_factory=recorder.factory)) as client:
+        with pytest.raises(ToolError):
+            await client.call_tool("roistat_prepare_write", event)
+    assert not recorder.calls
+    settings = config(
+        tmp_path, pair, write_enabled=True, write_operations="events_send,calltracking_script_delete"
+    )
+    async with Client(create_server(settings, transport="stdio", http_factory=recorder.factory)) as client:
+        results = []
+        for index, write in enumerate((event, script_delete)):
+            draft = (await client.call_tool("roistat_prepare_write", write)).data
+            assert approval_store(settings).accept(
+                UUID(draft["approval_id"]), principal="local-operator", request_hash=draft["request_hash"]
+            )
+            args = {**write, "approval_id": draft["approval_id"], "idempotency_key": f"new-{index}"}
+            results.append((await client.call_tool("roistat_apply_write", args)).data)
+    assert results[0]["applied"] and results[0]["readback"]["verified"] is False
+    assert results[1]["applied"] and results[1]["readback"] == {
+        "verified": True,
+        "deleted": True,
+        "object_id": "7",
+    }
+    assert [call[1].split("/api/v1/")[1] for call in recorder.calls] == [
+        "project/events/send",
+        "project/calltracking/script/delete",
+        "project/calltracking/script/list",
+    ]
+    with sqlite3.connect(settings.state_path) as db:
+        assert [row[0] for row in db.execute("SELECT status FROM writes")] == ["applied", "applied"]
+
+
+async def test_readback_rate_limit_records_cooldown_and_keeps_the_applied_write(tmp_path, pair):
+    """Regression: a 429 during readback was swallowed, so Retry-After never reached the cooldown."""
+    from zai_roistat.transport import ProviderRateLimited
+
+    class LimitedReadback(Recorder):
+        def factory(self, store, execution_id, actor):
+            base = super().factory(store, execution_id, actor)
+            owner = self
+
+            class Http(type(base)):
+                async def request(self, method, url, **kwargs):
+                    if url.endswith("/calltracking/script/list"):
+                        owner.calls.append((method, url, kwargs))
+                        raise ProviderRateLimited("provider returned HTTP 429", retry_after_seconds=120)
+                    return await super().request(method, url, **kwargs)
+
+            return Http(store, execution_id, actor)
+
+    recorder = LimitedReadback()
+    payload = {"id": 7, "name": "B"}
+    write = {"operation": "calltracking_script_update", "project_id": 12345, "payload": payload}
+    settings = config(tmp_path, pair, write_enabled=True, write_operations="calltracking_script_update")
+    async with Client(create_server(settings, transport="stdio", http_factory=recorder.factory)) as client:
+        draft = (await client.call_tool("roistat_prepare_write", write)).data
+        assert approval_store(settings).accept(
+            UUID(draft["approval_id"]), principal="local-operator", request_hash=draft["request_hash"]
+        )
+        args = {**write, "approval_id": draft["approval_id"], "idempotency_key": "limited-readback"}
+        result = (await client.call_tool("roistat_apply_write", args)).data
+    assert result["applied"] and result["readback"]["verified"] is False
+    assert result["readback"]["retry_after_seconds"] == 120
+    with sqlite3.connect(settings.state_path) as db:
+        assert [row[0] for row in db.execute("SELECT status FROM writes")] == ["applied"]
+        (until,) = db.execute("SELECT until_time FROM cooldowns").fetchone()
+    import time
+
+    assert until - time.time() > 100

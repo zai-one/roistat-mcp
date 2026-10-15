@@ -26,14 +26,29 @@ Try asking your assistant:
 
 ## Why this MCP
 
+- Optional lazy tool loading: set `ROISTAT_TOOL_LOADING=lazy` (or choose it in the setup wizard) to start with a small core and enable toolsets on demand; see [Lazy tool loading](#lazy-tool-loading).
 - Project allowlist; phone numbers, emails and visitor IPs are masked in supported responses.
-- Writes need `roistat_prepare_write` → operator approval → `roistat_apply_write`; `ROISTAT_READ_ONLY=1` removes them.
+- Writes need `roistat_prepare_write` → operator approval → `roistat_apply_write`; `ROISTAT_READ_ONLY=1` removes them. Calltracking and events writes stay off until listed in `ROISTAT_WRITE_OPERATIONS`.
 - Analytics bundles with exact request parameters and JSON/CSV; missing values stay distinct from zero; Markdown tables for compact replies.
 - Other Roistat MCP servers on GitHub ([NatrixAi/roistat-mcp](https://github.com/NatrixAi/roistat-mcp), 16 tools; [theYahia/roistat-mcp](https://github.com/theYahia/roistat-mcp), 6 tools) do not mask personal data.
 
+## Lazy tool loading
+
+Optional lazy tool loading: `ROISTAT_TOOL_LOADING=lazy` starts with a small core plus `roistat_enable_toolsets` and adds toolsets on demand (`tools/list_changed`). Startup cost (tools/list + instructions, ≈chars/4): eager ≈5164 tokens, lazy ≈1435 tokens (−72%). Default `eager` is unchanged; if your client ignores `tools/list_changed`, keep `eager` (or list the toolsets in `ROISTAT_TOOLSETS`): reconnecting starts a new session without the toolsets enabled in the old one. Scope: enablement is per MCP session (FastMCP session visibility), so one client's enabled toolsets never appear for another. The HTTP transport here is stateless (every request is its own session), so enabled toolsets do not persist there: for shared HTTP use `eager` or `ROISTAT_TOOLSETS`.
+
+Clients and `notifications/tools/list_changed` (verified against official docs, changelogs or maintainer statements, 2026-10):
+
+| Client | `tools/list_changed` | Source |
+|---|---|---|
+| Claude Code | Supported (interactive: tools, prompts, resources; `-p`/Agent SDK: tools) | [docs: Dynamic tool updates](https://code.claude.com/docs/en/mcp) |
+| VS Code (GitHub Copilot) | Supported (dynamic tool discovery); new tools may reach the agent only on the next turn | [docs](https://code.visualstudio.com/api/extension-guides/ai/mcp), [#303012](https://github.com/microsoft/vscode/issues/303012) |
+| Gemini CLI | Supported (refreshes the tool registry) | [PR #14375](https://github.com/google-gemini/gemini-cli/pull/14375), [PR #21050](https://github.com/google-gemini/gemini-cli/pull/21050) |
+| Cursor | Unreliable: staff confirm a regression in 3.12.x; use `eager` (a restart drops session-enabled toolsets) | [forum](https://forum.cursor.com/t/mcp-server-regression-does-not-reload-tools-disconnect-does-nothing-ignores-mcp-json-changes-etc/166216) |
+| Claude Desktop, Windsurf, Codex CLI, Cline, Zed, Continue | Unverified: no official statement found; use `eager` or `ROISTAT_TOOLSETS` | — |
+
 ## Maintained and up to date
 
-- Actively maintained by ZAI.ONE: current version 0.5.0; release notes in [CHANGELOG.md](CHANGELOG.md) and [Releases](https://github.com/zai-one/roistat-mcp/releases).
+- Actively maintained by ZAI.ONE: current version 0.6.0; release notes in [CHANGELOG.md](CHANGELOG.md) and [Releases](https://github.com/zai-one/roistat-mcp/releases).
 - Built-in update check: ask the assistant to run `roistat_check_update` (public GitHub API, no credentials, cached; nothing is installed automatically; `ROISTAT_DISABLE_UPDATE_CHECK=1` turns it off).
 - Follows current MCP practice: tool annotations (read-only / destructive hints), toolsets and read-only mode, server `instructions`, prompts and resources, structured errors with recovery hints, secrets kept out of tool output, a token budget for tool descriptions enforced in tests.
 - CI runs the test suite on Linux and Windows for every pull request.
@@ -99,7 +114,7 @@ reproducible installs; placeholders below are examples, keep secrets in files ou
 **Claude Code**
 
 ```bash
-claude mcp add roistat --env ROISTAT_API_KEY_FILE=/path/to/roistat.token --env ROISTAT_PROJECT_ALLOWLIST=12345 --env ROISTAT_STATE_PATH=/path/to/roistat.sqlite -- uvx --from git+https://github.com/zai-one/roistat-mcp@v0.5.0 roistat-mcp
+claude mcp add roistat --env ROISTAT_API_KEY_FILE=/path/to/roistat.token --env ROISTAT_PROJECT_ALLOWLIST=12345 --env ROISTAT_STATE_PATH=/path/to/roistat.sqlite -- uvx --from git+https://github.com/zai-one/roistat-mcp@v0.6.0 roistat-mcp
 ```
 
 Skills for Claude Code: copy `skills/*` into `~/.claude/skills/` (or install this repo as a plugin — it
@@ -114,7 +129,7 @@ ships `.claude-plugin/plugin.json` with the skills and the MCP server).
       "command": "uvx",
       "args": [
         "--from",
-        "git+https://github.com/zai-one/roistat-mcp@v0.5.0",
+        "git+https://github.com/zai-one/roistat-mcp@v0.6.0",
         "roistat-mcp"
       ],
       "env": {
@@ -133,7 +148,7 @@ repo's `.agents/skills` link):
 ```toml
 [mcp_servers.roistat]
 command = "uvx"
-args = ["--from", "git+https://github.com/zai-one/roistat-mcp@v0.5.0", "roistat-mcp"]
+args = ["--from", "git+https://github.com/zai-one/roistat-mcp@v0.6.0", "roistat-mcp"]
 env = { ROISTAT_API_KEY_FILE = "/path/to/roistat.token", ROISTAT_PROJECT_ALLOWLIST = "12345", ROISTAT_STATE_PATH = "/path/to/roistat.sqlite" }
 ```
 
@@ -150,11 +165,11 @@ and open the other files on demand. Clients without skills get the same flows as
 |---|---|
 | `roistat-channel-roi` | ROI, CPL, CPO and revenue by channel with period comparison. |
 | `roistat-lead-audit` | Duplicates, untagged leads, unattributed calls, orders without visit chain. |
-| `roistat-write-safe` | Order status/import/delete via prepare, operator acceptance and apply with readback. |
+| `roistat-write-safe` | Order status/import/delete, calltracking scripts/phones, events via prepare, operator acceptance and apply with readback. |
 
 ## Toolsets and read-only mode
 
-`ROISTAT_TOOLSETS=all` (default) or a comma list (see `roistat://toolsets`); `ROISTAT_TOOLS=a,b` adds single tools,
+Default: `meta`, `analytics`, `orders_visits`, `calls`, `settings_write`. Opt-in `extras` (`roistat_extra_read`: calltracking scripts and phone pool, events log, one client's activity feed; PII redacted). `ROISTAT_TOOLSETS=default` (when unset), `all`, or a comma list (see `roistat://toolsets`); `ROISTAT_TOOLS=a,b` adds single tools,
 `ROISTAT_DISABLED_TOOLS=a,b` removes them, `ROISTAT_READ_ONLY=1` removes every write/paid tool.
 
 ## Example requests
